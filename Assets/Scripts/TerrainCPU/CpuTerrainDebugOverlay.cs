@@ -31,6 +31,8 @@ public class CpuTerrainDebugOverlay : MonoBehaviour {
 
         GUILayout.Label("Left Click: Remove terrain");
         GUILayout.Label("Right Click: Add terrain");
+        GUILayout.Label("Mouse Wheel: Adjust edit radius");
+        GUILayout.Label("- / =: Decrease / increase edit strength");
         GUILayout.Label("S: Save loaded chunks");
         GUILayout.Label("L: Load saved chunks");
         GUILayout.Label("R: Reset visible chunks to seed");

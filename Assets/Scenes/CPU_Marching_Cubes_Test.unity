@@ -155,6 +155,7 @@ MonoBehaviour:
   radiusX: 1
   radiusY: 1
   radiusZ: 1
+  loadSavedChunksOnStart: 1
 --- !u!4 &105543411
 Transform:
   m_ObjectHideFlags: 0
@@ -165,6 +166,53 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 13.52032, y: -0, z: -9.22593}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &913870975
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 913870977}
+  - component: {fileID: 913870976}
+  m_Layer: 0
+  m_Name: CPU_Terrain_Debug_Overlay
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &913870976
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 913870975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 111c685747165414e9b8fb062cb79608, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CpuTerrainDebugOverlay
+  chunkManager: {fileID: 105543410}
+  editTester: {fileID: 1710681767}
+  showOverlay: 1
+--- !u!4 &913870977
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 913870975}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 19.95009, y: -0, z: 14.40975}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -383,8 +431,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1457796456}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.116292566, y: 0.882337, z: -0.34756172, w: 0.29522592}
-  m_LocalPosition: {x: -2, y: 21, z: 18}
+  m_LocalRotation: {x: 0.21960242, y: 0.75897735, z: -0.31813708, w: 0.52394366}
+  m_LocalPosition: {x: -24.882912, y: 48.7611, z: 31.406439}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -468,6 +516,14 @@ MonoBehaviour:
   editRadius: 2.5
   editStrength: 4
   rayDistance: 200
+  radiusScrollStep: 0.5
+  strengthStep: 1
+  minEditRadius: 0.5
+  maxEditRadius: 20
+  minEditStrength: 0.5
+  maxEditStrength: 50
+  continuousEditing: 1
+  editsPerSecond: 12
 --- !u!4 &1710681768
 Transform:
   m_ObjectHideFlags: 0
@@ -491,3 +547,4 @@ SceneRoots:
   - {fileID: 1114959582}
   - {fileID: 1710681768}
   - {fileID: 105543411}
+  - {fileID: 913870977}
