@@ -21,7 +21,7 @@ public class ColourGenerator : MonoBehaviour {
         Init ();
         UpdateTexture ();
 
-        MeshGenerator m = FindObjectOfType<MeshGenerator> ();
+        MeshGenerator m = FindAnyObjectByType<MeshGenerator> ();
 
         float boundsY = m.boundsSize * m.numChunks.y;
 

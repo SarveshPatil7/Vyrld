@@ -15,7 +15,7 @@ public class CpuTerrainEditTester : MonoBehaviour {
         }
 
         if (chunkManager == null) {
-            chunkManager = FindFirstObjectByType<CpuTerrainChunkManager>();
+            chunkManager = FindAnyObjectByType<CpuTerrainChunkManager>();
         }
     }
     private void Update() {

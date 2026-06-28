@@ -139,7 +139,7 @@ public class CpuTerrainChunk : MonoBehaviour {
         chunkCoord,
         cellCount,
         cellSize
-    );
+        );
 
         if (loadedData == null) {
             return;
@@ -148,7 +148,6 @@ public class CpuTerrainChunk : MonoBehaviour {
         densityData = loadedData;
         RebuildMesh();
 
-        Debug.Log("Loaded density chunk and rebuilt mesh.");
     }
 
     public void ResetChunkToSeed() {
@@ -157,7 +156,6 @@ public class CpuTerrainChunk : MonoBehaviour {
 
         RebuildMesh();
 
-        Debug.Log("Reset chunk to seed-generated default.");
     }
 
     public void Initialize(Vector3Int newChunkCoord, int newCellCount, float newCellSize, int newSeed, bool loadSavedIfAvailable) {
@@ -170,9 +168,17 @@ public class CpuTerrainChunk : MonoBehaviour {
 
         if (loadSavedIfAvailable && DensityChunkSaveLoad.SaveExists(chunkCoord)) {
             LoadChunk();
+            Debug.Log($"Chunk {chunkCoord} loaded from saved density file.");
         }
         else {
             GenerateNewChunk();
+
+            if (loadSavedIfAvailable) {
+                Debug.Log($"Chunk {chunkCoord} generated from seed because no save file exists.");
+            }
+            else {
+                Debug.Log($"Chunk {chunkCoord} generated from seed because auto-load is disabled.");
+            }
         }
     }
 }
