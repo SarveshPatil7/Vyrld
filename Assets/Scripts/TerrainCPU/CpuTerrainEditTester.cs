@@ -32,6 +32,9 @@ public class CpuTerrainEditTester : MonoBehaviour {
     private GameObject brushPreviewObject;
     private MeshRenderer brushPreviewRenderer;
 
+    [Header("Brush")]
+    public CpuTerrainBrushType brushType = CpuTerrainBrushType.SmoothSphere;
+
     private void Awake() {
         if (targetCamera == null) {
             targetCamera = Camera.main;
@@ -138,7 +141,7 @@ public class CpuTerrainEditTester : MonoBehaviour {
 
         float signedStrength = removeTerrain ? -editStrength : editStrength;
 
-        chunkManager.ApplySphereEdit(hit.point, editRadius, signedStrength);
+        chunkManager.ApplyBrushEdit(hit.point, editRadius, signedStrength, brushType);
     }
 
     private void HandleEditAdjustmentControls() {

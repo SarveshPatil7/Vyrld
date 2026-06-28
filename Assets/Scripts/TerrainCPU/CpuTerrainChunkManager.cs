@@ -100,26 +100,30 @@ public class CpuTerrainChunkManager : MonoBehaviour {
         Debug.Log($"Reset {chunks.Count} CPU terrain chunks to seed default.");
     }
 
-    public void ApplySphereEdit(Vector3 worldCenter, float radius, float strength) {
-        int editedChunkCount = 0;
+    public void ApplyBrushEdit(
+        Vector3 worldCenter,
+        float radius,
+        float strength,
+        CpuTerrainBrushType brushType) {
+            int editedChunkCount = 0;
 
-        foreach (CpuTerrainChunk chunk in chunks.Values) {
-            if (chunk == null) {
-                continue;
+            foreach (CpuTerrainChunk chunk in chunks.Values) {
+                if (chunk == null) {
+                    continue;
+                }
+
+                if (!DoesBrushOverlapChunk(worldCenter, radius, chunk)) {
+                    continue;
+                }
+
+                chunk.ApplyBrushEdit(worldCenter, radius, strength, brushType);
+                editedChunkCount++;
             }
 
-            if (!DoesSphereOverlapChunk(worldCenter, radius, chunk)) {
-                continue;
-            }
-
-            chunk.ApplySphereEdit(worldCenter, radius, strength);
-            editedChunkCount++;
-        }
-
-        Debug.Log($"Applied sphere edit to {editedChunkCount} chunks.");
+        Debug.Log($"Applied brush edit to {editedChunkCount} chunks.");
     }
 
-    private bool DoesSphereOverlapChunk(Vector3 worldCenter, float radius, CpuTerrainChunk chunk) {
+    private bool DoesBrushOverlapChunk(Vector3 worldCenter, float radius, CpuTerrainChunk chunk) {
         Vector3 chunkMin = new Vector3(
         chunk.chunkCoord.x * cellCount * cellSize,
         chunk.chunkCoord.y * cellCount * cellSize,
