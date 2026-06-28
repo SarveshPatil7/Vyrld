@@ -95,4 +95,35 @@ public class CpuTerrainChunk : MonoBehaviour {
 
         Debug.Log($"Density range for chunk {chunkCoord}: min {min}, max {max}");
     }
+
+    public void ApplySphereEdit(Vector3 worldCenter, float radius, float strength) {
+        if (densityData == null) {
+            Debug.LogError("Cannot edit terrain. Density data is null.");
+            return;
+        }
+
+        for (int x = 0; x < densityData.sampleCount; x++) {
+            for (int y = 0; y < densityData.sampleCount; y++) {
+                for (int z = 0; z < densityData.sampleCount; z++) {
+                    Vector3 worldPos = densityData.SampleToWorldPosition(x, y, z);
+                    float distance = Vector3.Distance(worldPos, worldCenter);
+
+                    if (distance > radius) {
+                        continue;
+                    }
+
+                    float falloff = 1f - distance / radius;
+
+                    float oldDensity = densityData.Get(x, y, z);
+                    float newDensity = oldDensity + strength * falloff;
+
+                    densityData.Set(x, y, z, newDensity);
+                }
+            }
+        }
+
+        RebuildMesh();
+
+        Debug.Log($"Applied sphere edit at {worldCenter}, radius {radius}, strength {strength}");
+    }
 }
