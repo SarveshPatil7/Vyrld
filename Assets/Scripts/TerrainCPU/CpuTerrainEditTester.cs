@@ -21,6 +21,9 @@ public class CpuTerrainEditTester : MonoBehaviour {
     public bool continuousEditing = true;
     public float editsPerSecond = 12f;
     private float nextEditTime = 0f;
+    private TerrainEditUndoSnapshot activeStrokeUndoSnapshot;
+    private bool isUndoStrokeActive;
+    private bool activeStrokeHadSuccessfulEdit;
 
     [Header("Brush Preview")]
     public bool showBrushPreview = true;
@@ -28,9 +31,15 @@ public class CpuTerrainEditTester : MonoBehaviour {
 
     private bool hasBrushHit;
     private Vector3 brushHitPoint;
+    private RaycastHit brushHit;
+
+    private const int flattenPreviewSegmentCount = 96;
 
     private GameObject brushPreviewObject;
+    private MeshFilter brushPreviewFilter;
     private MeshRenderer brushPreviewRenderer;
+    private Mesh spherePreviewMesh;
+    private Mesh diskPreviewMesh;
 
     [Header("Brush")]
     public CpuTerrainBrushType brushType = CpuTerrainBrushType.SmoothSphere;
@@ -74,14 +83,18 @@ public class CpuTerrainEditTester : MonoBehaviour {
         if (Physics.Raycast(ray, out RaycastHit hit, rayDistance)) {
             hasBrushHit = true;
             brushHitPoint = hit.point;
+            brushHit = hit;
         }
     }
+
     private void HandleKeyboardControls() {
         HandleBrushSwitchingControls();
 
         if (chunkManager == null) {
             return;
         }
+
+        HandleUndoControls();
 
         if (Input.GetKeyDown(KeyCode.S)) {
             chunkManager.SaveAllChunks();
@@ -118,6 +131,15 @@ public class CpuTerrainEditTester : MonoBehaviour {
         }
     }
 
+    private void HandleUndoControls() {
+        bool controlHeld = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
+
+        if (controlHeld && Input.GetKeyDown(KeyCode.Z)) {
+            EndUndoStroke();
+            chunkManager.UndoLastEdit();
+        }
+    }
+
     private void SetBrushType(CpuTerrainBrushType newBrushType) {
         brushType = newBrushType;
         Debug.Log($"Brush type: {brushType}");
@@ -127,6 +149,7 @@ public class CpuTerrainEditTester : MonoBehaviour {
         flattenMode = flattenMode == CpuTerrainFlattenMode.Horizontal ? CpuTerrainFlattenMode.AveragePlane : CpuTerrainFlattenMode.Horizontal;
         Debug.Log($"Flatten mode: {flattenMode}");
     }
+
     private void HandleMouseEditing() {
         if (targetCamera == null) {
             return;
@@ -141,48 +164,103 @@ public class CpuTerrainEditTester : MonoBehaviour {
     }
 
     private void HandleContinuousMouseEditing() {
+        bool removeHeld = Input.GetMouseButton(0);
+        bool addHeld = Input.GetMouseButton(1);
+
+        if (!removeHeld && !addHeld) {
+            EndUndoStroke();
+            return;
+        }
+
+        BeginUndoStroke();
+
         if (Time.time < nextEditTime) {
             return;
         }
 
         float editInterval = 1f / Mathf.Max(1f, editsPerSecond);
 
-        if (Input.GetMouseButton(0)) {
-            TryEdit(removeTerrain: true);
-            nextEditTime = Time.time + editInterval;
+        if (removeHeld) {
+            if (TryEdit(removeTerrain: true)) {
+                activeStrokeHadSuccessfulEdit = true;
+                nextEditTime = Time.time + editInterval;
+            }
         }
-        else if (Input.GetMouseButton(1)) {
-            TryEdit(removeTerrain: false);
-            nextEditTime = Time.time + editInterval;
+        else if (addHeld) {
+            if (TryEdit(removeTerrain: false)) {
+                activeStrokeHadSuccessfulEdit = true;
+                nextEditTime = Time.time + editInterval;
+            }
         }
     }
 
     private void HandleSingleClickMouseEditing() {
         if (Input.GetMouseButtonDown(0)) {
-            TryEdit(removeTerrain: true);
+            BeginUndoStroke();
+
+            if (TryEdit(removeTerrain: true)) {
+                activeStrokeHadSuccessfulEdit = true;
+            }
+
+            EndUndoStroke();
         }
 
         if (Input.GetMouseButtonDown(1)) {
-            TryEdit(removeTerrain: false);
+            BeginUndoStroke();
+
+            if (TryEdit(removeTerrain: false)) {
+                activeStrokeHadSuccessfulEdit = true;
+            }
+
+            EndUndoStroke();
         }
     }
 
-    private void TryEdit(bool removeTerrain) {
+    private bool TryEdit(bool removeTerrain) {
         Ray ray = targetCamera.ScreenPointToRay(Input.mousePosition);
 
         if (!Physics.Raycast(ray, out RaycastHit hit, rayDistance)) {
             Debug.Log("Edit raycast did not hit terrain.");
-            return;
+            return false;
         }
 
         if (chunkManager == null) {
             Debug.LogError("Cannot edit terrain. Chunk manager is not assigned.");
-            return;
+            return false;
+        }
+
+        if (activeStrokeUndoSnapshot != null) {
+            chunkManager.AddBrushAreaToUndoSnapshot(activeStrokeUndoSnapshot, hit.point, editRadius);
         }
 
         float signedStrength = removeTerrain ? -editStrength : editStrength;
 
         chunkManager.ApplyBrushEdit(hit.point, editRadius, signedStrength, brushType, flattenMode, roughnessScale, roughnessAmount);
+        return true;
+    }
+
+    private void BeginUndoStroke() {
+        if (isUndoStrokeActive) {
+            return;
+        }
+
+        activeStrokeUndoSnapshot = new TerrainEditUndoSnapshot();
+        activeStrokeHadSuccessfulEdit = false;
+        isUndoStrokeActive = true;
+    }
+
+    private void EndUndoStroke() {
+        if (!isUndoStrokeActive) {
+            return;
+        }
+
+        if (chunkManager != null && activeStrokeHadSuccessfulEdit && activeStrokeUndoSnapshot != null && !activeStrokeUndoSnapshot.IsEmpty) {
+            chunkManager.PushUndoSnapshot(activeStrokeUndoSnapshot);
+        }
+
+        activeStrokeUndoSnapshot = null;
+        activeStrokeHadSuccessfulEdit = false;
+        isUndoStrokeActive = false;
     }
 
     private void HandleEditAdjustmentControls() {
@@ -208,15 +286,15 @@ public class CpuTerrainEditTester : MonoBehaviour {
     }
 
     private void CreateBrushPreview() {
-        brushPreviewObject = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        brushPreviewObject.name = "CPU Terrain Brush Preview";
+        brushPreviewObject = new GameObject("CPU Terrain Brush Preview");
 
-        Collider previewCollider = brushPreviewObject.GetComponent<Collider>();
-        if (previewCollider != null) {
-            Destroy(previewCollider);
-        }
+        brushPreviewFilter = brushPreviewObject.AddComponent<MeshFilter>();
+        brushPreviewRenderer = brushPreviewObject.AddComponent<MeshRenderer>();
 
-        brushPreviewRenderer = brushPreviewObject.GetComponent<MeshRenderer>();
+        spherePreviewMesh = CreateSpherePreviewMesh();
+        diskPreviewMesh = CreateDiskPreviewMesh(64);
+
+        brushPreviewFilter.sharedMesh = spherePreviewMesh;
 
         Shader previewShader = Shader.Find("Universal Render Pipeline/Unlit");
 
@@ -229,7 +307,6 @@ public class CpuTerrainEditTester : MonoBehaviour {
         }
 
         Material previewMaterial = new Material(previewShader);
-
         SetBrushPreviewMaterialColor(previewMaterial, brushPreviewColor);
 
         previewMaterial.SetInt("_SrcBlend", (int) UnityEngine.Rendering.BlendMode.SrcAlpha);
@@ -241,9 +318,70 @@ public class CpuTerrainEditTester : MonoBehaviour {
             previewMaterial.SetFloat("_Surface", 1f);
         }
 
-        brushPreviewRenderer.material = previewMaterial;
+        if (previewMaterial.HasProperty("_Cull")) {
+            previewMaterial.SetInt("_Cull", (int) UnityEngine.Rendering.CullMode.Off);
+        }
 
+        brushPreviewRenderer.material = previewMaterial;
         brushPreviewObject.SetActive(false);
+
+    }
+
+    private Mesh CreateSpherePreviewMesh() {
+        GameObject temporarySphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        Mesh sourceMesh = temporarySphere.GetComponent<MeshFilter>().sharedMesh;
+        Mesh previewMesh = Instantiate(sourceMesh);
+        previewMesh.name = "CPU Terrain Brush Sphere Preview Mesh";
+        Destroy(temporarySphere);
+        return previewMesh;
+    }
+
+    private Mesh CreateDiskPreviewMesh(int segmentCount) {
+        segmentCount = Mathf.Max(8, segmentCount);
+
+        Vector3[] vertices = new Vector3[segmentCount + 1];
+        Vector3[] normals = new Vector3[segmentCount + 1];
+        Vector2[] uvs = new Vector2[segmentCount + 1];
+        int[] triangles = new int[segmentCount * 6];
+
+        vertices[0] = Vector3.zero;
+        normals[0] = Vector3.up;
+        uvs[0] = new Vector2(0.5f, 0.5f);
+
+        for (int i = 0; i < segmentCount; i++) {
+            float angle = (float) i / segmentCount * Mathf.PI * 2f;
+            float x = Mathf.Cos(angle);
+            float z = Mathf.Sin(angle);
+
+            vertices[i + 1] = new Vector3(x, 0f, z);
+            normals[i + 1] = Vector3.up;
+            uvs[i + 1] = new Vector2(x * 0.5f + 0.5f, z * 0.5f + 0.5f);
+        }
+
+        int triangleIndex = 0;
+
+        for (int i = 0; i < segmentCount; i++) {
+            int current = i + 1;
+            int next = i == segmentCount - 1 ? 1 : i + 2;
+
+            triangles[triangleIndex++] = 0;
+            triangles[triangleIndex++] = current;
+            triangles[triangleIndex++] = next;
+
+            triangles[triangleIndex++] = 0;
+            triangles[triangleIndex++] = next;
+            triangles[triangleIndex++] = current;
+        }
+
+        Mesh mesh = new Mesh();
+        mesh.name = "CPU Terrain Brush Disk Preview Mesh";
+        mesh.vertices = vertices;
+        mesh.normals = normals;
+        mesh.uv = uvs;
+        mesh.triangles = triangles;
+        mesh.RecalculateBounds();
+
+        return mesh;
     }
 
     private void SetBrushPreviewMaterialColor(Material material, Color color) {
@@ -275,11 +413,34 @@ public class CpuTerrainEditTester : MonoBehaviour {
             return;
         }
 
-        brushPreviewObject.transform.position = brushHitPoint;
-        brushPreviewObject.transform.localScale = Vector3.one * editRadius * 2f;
+        UpdateBrushPreviewMesh();
+
+        if (brushType == CpuTerrainBrushType.Flatten) {
+            brushPreviewObject.transform.position = brushHitPoint;
+            brushPreviewObject.transform.rotation = Quaternion.identity;
+            brushPreviewObject.transform.localScale = Vector3.one * editRadius;
+        }
+        else {
+            brushPreviewObject.transform.position = brushHitPoint;
+            brushPreviewObject.transform.rotation = Quaternion.identity;
+            brushPreviewObject.transform.localScale = Vector3.one * editRadius * 2f;
+        }
 
         if (brushPreviewRenderer != null) {
             SetBrushPreviewMaterialColor(brushPreviewRenderer.material, brushPreviewColor);
         }
     }
+
+    private void UpdateBrushPreviewMesh() {
+        if (brushPreviewFilter == null) {
+            return;
+        }
+
+        Mesh targetMesh = brushType == CpuTerrainBrushType.Flatten ? diskPreviewMesh : spherePreviewMesh;
+
+        if (brushPreviewFilter.sharedMesh != targetMesh) {
+            brushPreviewFilter.sharedMesh = targetMesh;
+        }
+    }
+
 }

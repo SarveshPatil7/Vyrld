@@ -152,9 +152,9 @@ MonoBehaviour:
   cellCount: 16
   cellSize: 1
   seed: 12345
-  radiusX: 1
+  radiusX: 2
   radiusY: 1
-  radiusZ: 1
+  radiusZ: 2
   loadSavedChunksOnStart: 1
 --- !u!4 &105543411
 Transform:
@@ -526,6 +526,10 @@ MonoBehaviour:
   editsPerSecond: 12
   showBrushPreview: 1
   brushPreviewColor: {r: 0.8113208, g: 0.8113208, b: 0.8113208, a: 0.03529412}
+  brushType: 0
+  roughnessScale: 0.35
+  roughnessAmount: 0.6
+  flattenMode: 0
 --- !u!4 &1710681768
 Transform:
   m_ObjectHideFlags: 0

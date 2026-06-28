@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -17,6 +18,11 @@ public class CpuTerrainChunkManager : MonoBehaviour {
 
     [Header("Save/Load")]
     public bool loadSavedChunksOnStart = true;
+
+    [Header("Undo")]
+    public int maxUndoSteps = 30;
+
+    private TerrainEditUndoSystem undoSystem;
 
     private readonly Dictionary<Vector3Int, CpuTerrainChunk> chunks = new();
 
@@ -87,6 +93,8 @@ public class CpuTerrainChunkManager : MonoBehaviour {
             }
         }
 
+        ClearUndoHistory();
+
         Debug.Log($"Loaded {chunks.Count} CPU terrain chunks.");
     }
 
@@ -96,6 +104,8 @@ public class CpuTerrainChunkManager : MonoBehaviour {
                 chunk.ResetChunkToSeed();
             }
         }
+
+        ClearUndoHistory();
 
         Debug.Log($"Reset {chunks.Count} CPU terrain chunks to seed default.");
     }
@@ -320,5 +330,83 @@ public class CpuTerrainChunkManager : MonoBehaviour {
         }
 
         return sqrDistance <= radius * radius;
+    }
+
+    private void Awake() {
+        undoSystem = new TerrainEditUndoSystem(maxUndoSteps);
+    }
+
+    public void AddBrushAreaToUndoSnapshot(TerrainEditUndoSnapshot snapshot, Vector3 worldCenter, float radius) {
+        if (snapshot == null) {
+            return;
+        }
+
+        foreach (CpuTerrainChunk chunk in chunks.Values) {
+            if (chunk == null || chunk.DensityData == null) {
+                continue;
+            }
+
+            if (!DoesBrushOverlapChunk(worldCenter, radius, chunk)) {
+                continue;
+            }
+
+            if (snapshot.ContainsChunk(chunk.chunkCoord)) {
+                continue;
+            }
+
+            float[] sourceDensityArray = chunk.DensityData.GetRawDensityArray();
+            float[] copiedDensityArray = new float[sourceDensityArray.Length];
+            Array.Copy(sourceDensityArray, copiedDensityArray, sourceDensityArray.Length);
+
+            snapshot.AddChunk(chunk.chunkCoord, copiedDensityArray);
+        }
+    }
+
+    public void PushUndoSnapshot(TerrainEditUndoSnapshot snapshot) {
+        EnsureUndoSystem();
+
+        if (snapshot == null || snapshot.IsEmpty) {
+            return;
+        }
+
+        undoSystem.Push(snapshot);
+        Debug.Log($"Stored terrain undo step. Undo count: {undoSystem.UndoCount}");
+    }
+
+    public void UndoLastEdit() {
+        EnsureUndoSystem();
+
+        if (!undoSystem.TryPop(out TerrainEditUndoSnapshot snapshot)) {
+            Debug.Log("No terrain undo step available.");
+            return;
+        }
+
+        int restoredChunkCount = 0;
+
+        foreach (KeyValuePair<Vector3Int, float[]> entry in snapshot.ChunkDensitySnapshots) {
+            if (!chunks.TryGetValue(entry.Key, out CpuTerrainChunk chunk)) {
+                continue;
+            }
+
+            if (chunk == null) {
+                continue;
+            }
+
+            chunk.RestoreDensitySnapshot(entry.Value);
+            restoredChunkCount++;
+        }
+
+        Debug.Log($"Undid terrain edit. Restored {restoredChunkCount} chunks.");
+    }
+
+    public void ClearUndoHistory() {
+        EnsureUndoSystem();
+        undoSystem.Clear();
+    }
+
+    private void EnsureUndoSystem() {
+        if (undoSystem == null) {
+            undoSystem = new TerrainEditUndoSystem(maxUndoSteps);
+        }
     }
 }

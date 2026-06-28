@@ -1,5 +1,6 @@
 using UnityEditor;
 using UnityEngine;
+using System;
 
 [RequireComponent(typeof(MeshFilter))]
 [RequireComponent(typeof(MeshRenderer))]
@@ -187,28 +188,25 @@ public class CpuTerrainChunk : MonoBehaviour {
         }
     }
 
-    private void OnDrawGizmos() {
-        if (!showChunkBounds) {
+    public void RestoreDensitySnapshot(float[] densitySnapshot) {
+        if (densityData == null) {
+            Debug.LogError("Cannot restore terrain chunk. Density data is null.");
             return;
         }
 
-        float size = cellCount * cellSize;
-
-        Vector3 chunkOrigin = new Vector3(
-        chunkCoord.x * size,
-        chunkCoord.y * size,
-        chunkCoord.z * size
-    );
-
-        Vector3 center = chunkOrigin + Vector3.one * size * 0.5f;
-
-        Gizmos.color = chunkBoundsColor;
-        Gizmos.DrawWireCube(center, Vector3.one * size);
-
-#if UNITY_EDITOR
-        if (showChunkLabel) {
-            Handles.Label(center, $"Chunk {chunkCoord}");
+        if (densitySnapshot == null) {
+            Debug.LogError("Cannot restore terrain chunk. Snapshot is null.");
+            return;
         }
-#endif
+
+        float[] targetDensityArray = densityData.GetRawDensityArray();
+
+        if (targetDensityArray.Length != densitySnapshot.Length) {
+            Debug.LogError($"Cannot restore terrain chunk {chunkCoord}. Snapshot length does not match density array length.");
+            return;
+        }
+
+        Array.Copy(densitySnapshot, targetDensityArray, targetDensityArray.Length);
+        RebuildMesh();
     }
 }
