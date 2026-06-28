@@ -15,6 +15,9 @@ public class CpuTerrainChunkManager : MonoBehaviour {
     public int radiusY = 1;
     public int radiusZ = 1;
 
+    [Header("Save/Load")]
+    public bool loadSavedChunksOnStart = true;
+
     private readonly Dictionary<Vector3Int, CpuTerrainChunk> chunks = new();
 
     private void Start() {
@@ -47,7 +50,7 @@ public class CpuTerrainChunkManager : MonoBehaviour {
         );
 
         chunk.name = $"CPU_Terrain_Chunk_{chunkCoord.x}_{chunkCoord.y}_{chunkCoord.z}";
-        chunk.Initialize(chunkCoord, cellCount, cellSize, seed);
+        chunk.Initialize(chunkCoord, cellCount, cellSize, seed, loadSavedChunksOnStart);
 
         chunks.Add(chunkCoord, chunk);
     }

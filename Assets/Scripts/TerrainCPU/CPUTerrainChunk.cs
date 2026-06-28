@@ -1,4 +1,3 @@
-using NUnit.Framework.Internal;
 using UnityEngine;
 
 [RequireComponent(typeof(MeshFilter))]
@@ -15,6 +14,7 @@ public class CpuTerrainChunk : MonoBehaviour {
     [Header("Debug")]
     public bool generateOnStart = true;
     public bool logDensityRange = true;
+
 
     private MeshFilter meshFilter;
     private MeshCollider meshCollider;
@@ -160,12 +160,19 @@ public class CpuTerrainChunk : MonoBehaviour {
         Debug.Log("Reset chunk to seed-generated default.");
     }
 
-    public void Initialize(Vector3Int newChunkCoord, int newCellCount, float newCellSize, int newSeed) {
+    public void Initialize(Vector3Int newChunkCoord, int newCellCount, float newCellSize, int newSeed, bool loadSavedIfAvailable) {
         chunkCoord = newChunkCoord;
         cellCount = newCellCount;
         cellSize = newCellSize;
         seed = newSeed;
 
-        GenerateNewChunk();
+        UpdateChunkTransformPosition();
+
+        if (loadSavedIfAvailable && DensityChunkSaveLoad.SaveExists(chunkCoord)) {
+            LoadChunk();
+        }
+        else {
+            GenerateNewChunk();
+        }
     }
 }

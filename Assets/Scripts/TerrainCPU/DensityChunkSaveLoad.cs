@@ -103,6 +103,11 @@ public static class DensityChunkSaveLoad {
         return data;
     }
 
+    public static bool SaveExists(Vector3Int chunkCoord) {
+        string path = GetChunkPath(chunkCoord);
+        return File.Exists(path);
+    }
+
     private static string GetChunkPath(Vector3Int chunkCoord) {
         string folder = Path.Combine(
             Application.persistentDataPath,
