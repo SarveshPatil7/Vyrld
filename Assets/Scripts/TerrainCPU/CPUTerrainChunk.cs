@@ -1,3 +1,4 @@
+using UnityEditor;
 using UnityEngine;
 
 [RequireComponent(typeof(MeshFilter))]
@@ -15,6 +16,10 @@ public class CpuTerrainChunk : MonoBehaviour {
     public bool generateOnStart = true;
     public bool logDensityRange = true;
 
+    [Header("Gizmos")]
+    public bool showChunkBounds = true;
+    public bool showChunkLabel = true;
+    public Color chunkBoundsColor = new Color(0.5f, 0.5f, 0.5f, 0.25f);
 
     private MeshFilter meshFilter;
     private MeshCollider meshCollider;
@@ -180,5 +185,30 @@ public class CpuTerrainChunk : MonoBehaviour {
                 Debug.Log($"Chunk {chunkCoord} generated from seed because auto-load is disabled.");
             }
         }
+    }
+
+    private void OnDrawGizmos() {
+        if (!showChunkBounds) {
+            return;
+        }
+
+        float size = cellCount * cellSize;
+
+        Vector3 chunkOrigin = new Vector3(
+        chunkCoord.x * size,
+        chunkCoord.y * size,
+        chunkCoord.z * size
+    );
+
+        Vector3 center = chunkOrigin + Vector3.one * size * 0.5f;
+
+        Gizmos.color = chunkBoundsColor;
+        Gizmos.DrawWireCube(center, Vector3.one * size);
+
+#if UNITY_EDITOR
+        if (showChunkLabel) {
+            Handles.Label(center, $"Chunk {chunkCoord}");
+        }
+#endif
     }
 }

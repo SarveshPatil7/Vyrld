@@ -132,3 +132,6 @@ MonoBehaviour:
   seed: 12345
   generateOnStart: 0
   logDensityRange: 1
+  showChunkBounds: 1
+  showChunkLabel: 1
+  chunkBoundsColor: {r: 0.3018868, g: 0.3018868, b: 0.3018868, a: 0.12156863}
