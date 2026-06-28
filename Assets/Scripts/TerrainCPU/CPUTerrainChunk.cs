@@ -45,7 +45,6 @@ public class CpuTerrainChunk : MonoBehaviour {
 
         RebuildMesh();
 
-        Debug.Log("CPU terrain chunk density generated.");
     }
 
     public void RebuildMesh() {
@@ -62,7 +61,7 @@ public class CpuTerrainChunk : MonoBehaviour {
         meshCollider.sharedMesh = null;
         meshCollider.sharedMesh = mesh;
 
-        Debug.Log($"Generated mesh with {mesh.vertexCount} vertices and {mesh.triangles.Length / 3} triangles.");
+
     }
 
     private void UpdateChunkTransformPosition() {
@@ -124,7 +123,6 @@ public class CpuTerrainChunk : MonoBehaviour {
 
         RebuildMesh();
 
-        Debug.Log($"Applied sphere edit at {worldCenter}, radius {radius}, strength {strength}");
     }
 
     public void SaveChunk() {
@@ -162,4 +160,12 @@ public class CpuTerrainChunk : MonoBehaviour {
         Debug.Log("Reset chunk to seed-generated default.");
     }
 
+    public void Initialize(Vector3Int newChunkCoord, int newCellCount, float newCellSize, int newSeed) {
+        chunkCoord = newChunkCoord;
+        cellCount = newCellCount;
+        cellSize = newCellSize;
+        seed = newSeed;
+
+        GenerateNewChunk();
+    }
 }
