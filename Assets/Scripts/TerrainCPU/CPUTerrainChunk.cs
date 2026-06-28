@@ -126,4 +126,40 @@ public class CpuTerrainChunk : MonoBehaviour {
 
         Debug.Log($"Applied sphere edit at {worldCenter}, radius {radius}, strength {strength}");
     }
+
+    public void SaveChunk() {
+        if (densityData == null) {
+            Debug.LogError("Cannot save chunk. Density data is null.");
+            return;
+        }
+
+        DensityChunkSaveLoad.Save(densityData);
+    }
+
+    public void LoadChunk() {
+        DensityChunkData loadedData = DensityChunkSaveLoad.Load(
+        chunkCoord,
+        cellCount,
+        cellSize
+    );
+
+        if (loadedData == null) {
+            return;
+        }
+
+        densityData = loadedData;
+        RebuildMesh();
+
+        Debug.Log("Loaded density chunk and rebuilt mesh.");
+    }
+
+    public void ResetChunkToSeed() {
+        densityData = new DensityChunkData(chunkCoord, cellCount, cellSize);
+        DensityInitializer.FillFromSeed(densityData, seed);
+
+        RebuildMesh();
+
+        Debug.Log("Reset chunk to seed-generated default.");
+    }
+
 }

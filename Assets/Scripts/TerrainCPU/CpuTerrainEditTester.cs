@@ -21,6 +21,22 @@ public class CpuTerrainEditTester : MonoBehaviour {
         if (Input.GetMouseButtonDown(1)) {
             TryEdit(removeTerrain: false);
         }
+
+        if (Input.GetKeyDown(KeyCode.S)) {
+            chunk.SaveChunk();
+        }
+
+        if (Input.GetKeyDown(KeyCode.L)) {
+            chunk.LoadChunk();
+        }
+
+        if (Input.GetKeyDown(KeyCode.R)) {
+            chunk.ResetChunkToSeed();
+        }
+
+        if (targetCamera == null) {
+            return;
+        }
     }
 
     private void TryEdit(bool removeTerrain) {
