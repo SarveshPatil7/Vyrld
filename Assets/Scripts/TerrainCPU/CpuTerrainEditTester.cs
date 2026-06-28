@@ -77,6 +77,8 @@ public class CpuTerrainEditTester : MonoBehaviour {
         }
     }
     private void HandleKeyboardControls() {
+        HandleBrushSwitchingControls();
+
         if (chunkManager == null) {
             return;
         }
@@ -94,6 +96,37 @@ public class CpuTerrainEditTester : MonoBehaviour {
         }
     }
 
+    private void HandleBrushSwitchingControls() {
+        if (Input.GetKeyDown(KeyCode.Alpha1) || Input.GetKeyDown(KeyCode.Keypad1)) {
+            SetBrushType(CpuTerrainBrushType.SmoothSphere);
+        }
+
+        if (Input.GetKeyDown(KeyCode.Alpha2) || Input.GetKeyDown(KeyCode.Keypad2)) {
+            SetBrushType(CpuTerrainBrushType.HardSphere);
+        }
+
+        if (Input.GetKeyDown(KeyCode.Alpha3) || Input.GetKeyDown(KeyCode.Keypad3)) {
+            SetBrushType(CpuTerrainBrushType.RoughSphere);
+        }
+
+        if (Input.GetKeyDown(KeyCode.Alpha4) || Input.GetKeyDown(KeyCode.Keypad4)) {
+            SetBrushType(CpuTerrainBrushType.Flatten);
+        }
+
+        if (Input.GetKeyDown(KeyCode.Keypad5)) {
+            ToggleFlattenMode();
+        }
+    }
+
+    private void SetBrushType(CpuTerrainBrushType newBrushType) {
+        brushType = newBrushType;
+        Debug.Log($"Brush type: {brushType}");
+    }
+
+    private void ToggleFlattenMode() {
+        flattenMode = flattenMode == CpuTerrainFlattenMode.Horizontal ? CpuTerrainFlattenMode.AveragePlane : CpuTerrainFlattenMode.Horizontal;
+        Debug.Log($"Flatten mode: {flattenMode}");
+    }
     private void HandleMouseEditing() {
         if (targetCamera == null) {
             return;
