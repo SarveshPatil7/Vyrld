@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class CpuTerrainEditTester : MonoBehaviour {
+public class CpuTerrainEditTool : MonoBehaviour {
     public Camera targetCamera;
     public CpuTerrainChunkManager chunkManager;
 
