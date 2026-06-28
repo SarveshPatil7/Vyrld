@@ -100,27 +100,181 @@ public class CpuTerrainChunkManager : MonoBehaviour {
         Debug.Log($"Reset {chunks.Count} CPU terrain chunks to seed default.");
     }
 
-    public void ApplyBrushEdit(
-        Vector3 worldCenter,
-        float radius,
-        float strength,
-        CpuTerrainBrushType brushType) {
-            int editedChunkCount = 0;
+    public void ApplyBrushEdit(Vector3 worldCenter, float radius, float strength, CpuTerrainBrushType brushType, CpuTerrainFlattenMode flattenMode, float roughnessScale, float roughnessAmount) {
+        CpuTerrainBrushContext brushContext = BuildBrushContext(worldCenter, radius, brushType, flattenMode);
 
-            foreach (CpuTerrainChunk chunk in chunks.Values) {
-                if (chunk == null) {
-                    continue;
-                }
+        int editedChunkCount = 0;
 
-                if (!DoesBrushOverlapChunk(worldCenter, radius, chunk)) {
-                    continue;
-                }
-
-                chunk.ApplyBrushEdit(worldCenter, radius, strength, brushType);
-                editedChunkCount++;
+        foreach (CpuTerrainChunk chunk in chunks.Values) {
+            if (chunk == null) {
+                continue;
             }
 
+            if (!DoesBrushOverlapChunk(worldCenter, radius, chunk)) {
+                continue;
+            }
+
+            chunk.ApplyBrushEdit(
+                worldCenter,
+                radius,
+                strength,
+                brushType,
+                roughnessScale,
+                roughnessAmount,
+                brushContext
+            );
+
+            editedChunkCount++;
+        }
+
         Debug.Log($"Applied brush edit to {editedChunkCount} chunks.");
+    }
+
+    private CpuTerrainBrushContext BuildBrushContext(Vector3 worldCenter, float radius, CpuTerrainBrushType brushType, CpuTerrainFlattenMode flattenMode) {
+        if (brushType != CpuTerrainBrushType.Flatten) {
+            return CpuTerrainBrushContext.Horizontal(worldCenter);
+        }
+
+        if (flattenMode == CpuTerrainFlattenMode.Horizontal) {
+            return CpuTerrainBrushContext.Horizontal(worldCenter);
+        }
+
+        if (TryBuildAveragePlaneContext(worldCenter, radius, out CpuTerrainBrushContext context)) {
+            return context;
+        }
+
+        return CpuTerrainBrushContext.Horizontal(worldCenter);
+    }
+
+    private bool TryBuildAveragePlaneContext(Vector3 worldCenter, float radius, out CpuTerrainBrushContext context) {
+        context = CpuTerrainBrushContext.Horizontal(worldCenter);
+
+        float sumXX = 0f;
+        float sumXZ = 0f;
+        float sumX = 0f;
+
+        float sumZZ = 0f;
+        float sumZ = 0f;
+        float sum = 0f;
+
+        float sumXY = 0f;
+        float sumZY = 0f;
+        float sumY = 0f;
+
+        foreach (CpuTerrainChunk chunk in chunks.Values) {
+            if (chunk == null || chunk.DensityData == null) {
+                continue;
+            }
+
+            if (!DoesBrushOverlapChunk(worldCenter, radius, chunk)) {
+                continue;
+            }
+
+            DensityChunkData densityData = chunk.DensityData;
+
+            for (int x = 0; x < densityData.sampleCount; x++) {
+                for (int y = 0; y < densityData.sampleCount; y++) {
+                    for (int z = 0; z < densityData.sampleCount; z++) {
+                        Vector3 sampleWorldPosition = densityData.SampleToWorldPosition(x, y, z);
+                        float distance = Vector3.Distance(sampleWorldPosition, worldCenter);
+
+                        if (distance > radius) {
+                            continue;
+                        }
+
+                        float falloff = 1f - distance / radius;
+                        float weight = Mathf.Max(0.001f, falloff);
+
+                        float density = densityData.Get(x, y, z);
+
+                        float localX = sampleWorldPosition.x - worldCenter.x;
+                        float localZ = sampleWorldPosition.z - worldCenter.z;
+
+                        float estimatedSurfaceY = sampleWorldPosition.y + density;
+
+                        sumXX += weight * localX * localX;
+                        sumXZ += weight * localX * localZ;
+                        sumX += weight * localX;
+
+                        sumZZ += weight * localZ * localZ;
+                        sumZ += weight * localZ;
+                        sum += weight;
+
+                        sumXY += weight * localX * estimatedSurfaceY;
+                        sumZY += weight * localZ * estimatedSurfaceY;
+                        sumY += weight * estimatedSurfaceY;
+                    }
+                }
+            }
+        }
+
+        if (sum <= 0.001f) {
+            return false;
+        }
+
+        bool solved = Solve3x3(
+        sumXX, sumXZ, sumX,
+        sumXZ, sumZZ, sumZ,
+        sumX,  sumZ,  sum,
+        sumXY, sumZY, sumY,
+        out float a,
+        out float b,
+        out float c
+    );
+
+        if (!solved) {
+            return false;
+        }
+
+        Vector3 planeNormal = new Vector3(-a, 1f, -b).normalized;
+        Vector3 planePoint = new Vector3(worldCenter.x, c, worldCenter.z);
+
+        context = new CpuTerrainBrushContext {
+            planePoint = planePoint,
+            planeNormal = planeNormal
+        };
+
+        return true;
+    }
+
+    private bool Solve3x3(  float a11, float a12, float a13,
+                            float a21, float a22, float a23,
+                            float a31, float a32, float a33,
+                            float b1, float b2, float b3,
+                            out float x, out float y, out float z) {
+        x = 0f;
+        y = 0f;
+        z = 0f;
+
+        float det =
+        a11 * (a22 * a33 - a23 * a32) -
+        a12 * (a21 * a33 - a23 * a31) +
+        a13 * (a21 * a32 - a22 * a31);
+
+        if (Mathf.Abs(det) < 0.00001f) {
+            return false;
+        }
+
+        float detX =
+        b1 * (a22 * a33 - a23 * a32) -
+        a12 * (b2 * a33 - a23 * b3) +
+        a13 * (b2 * a32 - a22 * b3);
+
+        float detY =
+        a11 * (b2 * a33 - a23 * b3) -
+        b1 * (a21 * a33 - a23 * a31) +
+        a13 * (a21 * b3 - b2 * a31);
+
+        float detZ =
+        a11 * (a22 * b3 - b2 * a32) -
+        a12 * (a21 * b3 - b2 * a31) +
+        b1 * (a21 * a32 - a22 * a31);
+
+        x = detX / det;
+        y = detY / det;
+        z = detZ / det;
+
+        return true;
     }
 
     private bool DoesBrushOverlapChunk(Vector3 worldCenter, float radius, CpuTerrainChunk chunk) {

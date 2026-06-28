@@ -100,11 +100,8 @@ public class CpuTerrainChunk : MonoBehaviour {
         Debug.Log($"Density range for chunk {chunkCoord}: min {min}, max {max}");
     }
 
-    public void ApplyBrushEdit(
-        Vector3 worldCenter,
-        float radius,
-        float strength,
-        CpuTerrainBrushType brushType) {
+    public void ApplyBrushEdit(Vector3 worldCenter, float radius, float strength, CpuTerrainBrushType brushType, float roughnessScale, float roughnessAmount, 
+                                CpuTerrainBrushContext brushContext) {
         if (densityData == null) {
             Debug.LogError("Cannot edit terrain. Density data is null.");
             return;
@@ -115,19 +112,15 @@ public class CpuTerrainChunk : MonoBehaviour {
                 for (int z = 0; z < densityData.sampleCount; z++) {
                     Vector3 worldPos = densityData.SampleToWorldPosition(x, y, z);
 
-                    float densityDelta = CpuTerrainBrush.EvaluateDensityDelta(
-                    worldPos,
-                    worldCenter,
-                    radius,
-                    strength,
-                    brushType
-                );
+                    float oldDensity = densityData.Get(x, y, z);
+
+                    float densityDelta = CpuTerrainBrush.EvaluateDensityDelta(worldPos, oldDensity, worldCenter, radius, strength, brushType, roughnessScale, 
+                                                                                roughnessAmount, brushContext);
 
                     if (Mathf.Approximately(densityDelta, 0f)) {
                         continue;
                     }
 
-                    float oldDensity = densityData.Get(x, y, z);
                     float newDensity = oldDensity + densityDelta;
                     densityData.Set(x, y, z, newDensity);
                 }

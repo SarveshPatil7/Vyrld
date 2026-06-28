@@ -35,6 +35,14 @@ public class CpuTerrainEditTester : MonoBehaviour {
     [Header("Brush")]
     public CpuTerrainBrushType brushType = CpuTerrainBrushType.SmoothSphere;
 
+    [Header("Rough Brush")]
+    public float roughnessScale = 0.35f;
+    [Range(0f, 5f)]
+    public float roughnessAmount = 0.6f;
+
+    [Header("Flatten Brush")]
+    public CpuTerrainFlattenMode flattenMode = CpuTerrainFlattenMode.Horizontal;
+
     private void Awake() {
         if (targetCamera == null) {
             targetCamera = Camera.main;
@@ -141,7 +149,7 @@ public class CpuTerrainEditTester : MonoBehaviour {
 
         float signedStrength = removeTerrain ? -editStrength : editStrength;
 
-        chunkManager.ApplyBrushEdit(hit.point, editRadius, signedStrength, brushType);
+        chunkManager.ApplyBrushEdit(hit.point, editRadius, signedStrength, brushType, flattenMode, roughnessScale, roughnessAmount);
     }
 
     private void HandleEditAdjustmentControls() {
