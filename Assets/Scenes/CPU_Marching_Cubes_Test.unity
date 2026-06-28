@@ -524,6 +524,8 @@ MonoBehaviour:
   maxEditStrength: 50
   continuousEditing: 1
   editsPerSecond: 12
+  showBrushPreview: 1
+  brushPreviewColor: {r: 0.8113208, g: 0.8113208, b: 0.8113208, a: 0.03529412}
 --- !u!4 &1710681768
 Transform:
   m_ObjectHideFlags: 0

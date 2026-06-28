@@ -20,8 +20,17 @@ public class CpuTerrainEditTester : MonoBehaviour {
     [Header("Continuous Editing")]
     public bool continuousEditing = true;
     public float editsPerSecond = 12f;
-
     private float nextEditTime = 0f;
+
+    [Header("Brush Preview")]
+    public bool showBrushPreview = true;
+    public Color brushPreviewColor = new Color(1f, 1f, 1f, 0.25f);
+
+    private bool hasBrushHit;
+    private Vector3 brushHitPoint;
+
+    private GameObject brushPreviewObject;
+    private MeshRenderer brushPreviewRenderer;
 
     private void Awake() {
         if (targetCamera == null) {
@@ -31,13 +40,31 @@ public class CpuTerrainEditTester : MonoBehaviour {
         if (chunkManager == null) {
             chunkManager = FindAnyObjectByType<CpuTerrainChunkManager>();
         }
+
+        CreateBrushPreview();
     }
     private void Update() {
         HandleKeyboardControls();
         HandleEditAdjustmentControls();
+        UpdateBrushPreview();
+        UpdateBrushPreviewVisual();
         HandleMouseEditing();
     }
 
+    private void UpdateBrushPreview() {
+        hasBrushHit = false;
+
+        if (targetCamera == null) {
+            return;
+        }
+
+        Ray ray = targetCamera.ScreenPointToRay(Input.mousePosition);
+
+        if (Physics.Raycast(ray, out RaycastHit hit, rayDistance)) {
+            hasBrushHit = true;
+            brushHitPoint = hit.point;
+        }
+    }
     private void HandleKeyboardControls() {
         if (chunkManager == null) {
             return;
@@ -133,6 +160,82 @@ public class CpuTerrainEditTester : MonoBehaviour {
             editStrength += strengthStep;
             editStrength = Mathf.Clamp(editStrength, minEditStrength, maxEditStrength);
             Debug.Log($"Edit strength: {editStrength}");
+        }
+    }
+
+    private void CreateBrushPreview() {
+        brushPreviewObject = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        brushPreviewObject.name = "CPU Terrain Brush Preview";
+
+        Collider previewCollider = brushPreviewObject.GetComponent<Collider>();
+        if (previewCollider != null) {
+            Destroy(previewCollider);
+        }
+
+        brushPreviewRenderer = brushPreviewObject.GetComponent<MeshRenderer>();
+
+        Shader previewShader = Shader.Find("Universal Render Pipeline/Unlit");
+
+        if (previewShader == null) {
+            previewShader = Shader.Find("Unlit/Transparent");
+        }
+
+        if (previewShader == null) {
+            previewShader = Shader.Find("Sprites/Default");
+        }
+
+        Material previewMaterial = new Material(previewShader);
+
+        SetBrushPreviewMaterialColor(previewMaterial, brushPreviewColor);
+
+        previewMaterial.SetInt("_SrcBlend", (int) UnityEngine.Rendering.BlendMode.SrcAlpha);
+        previewMaterial.SetInt("_DstBlend", (int) UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+        previewMaterial.SetInt("_ZWrite", 0);
+        previewMaterial.renderQueue = 3000;
+
+        if (previewMaterial.HasProperty("_Surface")) {
+            previewMaterial.SetFloat("_Surface", 1f);
+        }
+
+        brushPreviewRenderer.material = previewMaterial;
+
+        brushPreviewObject.SetActive(false);
+    }
+
+    private void SetBrushPreviewMaterialColor(Material material, Color color) {
+        if (material == null) {
+            return;
+        }
+
+        if (material.HasProperty("_BaseColor")) {
+            material.SetColor("_BaseColor", color);
+        }
+
+        if (material.HasProperty("_Color")) {
+            material.SetColor("_Color", color);
+        }
+
+        material.color = color;
+    }
+
+    private void UpdateBrushPreviewVisual() {
+        bool shouldShow = showBrushPreview && hasBrushHit;
+
+        if (brushPreviewObject == null) {
+            return;
+        }
+
+        brushPreviewObject.SetActive(shouldShow);
+
+        if (!shouldShow) {
+            return;
+        }
+
+        brushPreviewObject.transform.position = brushHitPoint;
+        brushPreviewObject.transform.localScale = Vector3.one * editRadius * 2f;
+
+        if (brushPreviewRenderer != null) {
+            SetBrushPreviewMaterialColor(brushPreviewRenderer.material, brushPreviewColor);
         }
     }
 }
