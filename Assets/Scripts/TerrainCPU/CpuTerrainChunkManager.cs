@@ -45,21 +45,24 @@ public class CpuTerrainChunkManager : MonoBehaviour {
         Debug.Log($"Generated {chunks.Count} CPU terrain chunks.");
     }
 
-    private void CreateChunk(Vector3Int chunkCoord) {
-        if (chunkPrefab == null) {
-            Debug.LogError("Chunk prefab is not assigned.");
-            return;
+    private CpuTerrainChunk CreateChunk(Vector3Int chunkCoord) {
+        if (chunks.TryGetValue(chunkCoord, out CpuTerrainChunk existingChunk)) {
+            return existingChunk;
         }
 
-        CpuTerrainChunk chunk = Instantiate(
-            chunkPrefab,
-            transform
-        );
+        if (chunkPrefab == null) {
+            Debug.LogError("Chunk prefab is not assigned.");
+            return null;
+        }
+
+        CpuTerrainChunk chunk = Instantiate(chunkPrefab, transform);
 
         chunk.name = $"CPU_Terrain_Chunk_{chunkCoord.x}_{chunkCoord.y}_{chunkCoord.z}";
         chunk.Initialize(chunkCoord, cellCount, cellSize, seed, loadSavedChunksOnStart, worldName);
 
         chunks.Add(chunkCoord, chunk);
+
+        return chunk;
     }
 
     private void ClearExistingChunks() {
@@ -75,6 +78,65 @@ public class CpuTerrainChunkManager : MonoBehaviour {
     public CpuTerrainChunk GetChunk(Vector3Int chunkCoord) {
         chunks.TryGetValue(chunkCoord, out CpuTerrainChunk chunk);
         return chunk;
+    }
+
+    public Vector3Int WorldToChunkCoord(Vector3 worldPosition) {
+        float chunkWorldSize = cellCount * cellSize;
+
+        return new Vector3Int(
+            Mathf.FloorToInt(worldPosition.x / chunkWorldSize),
+            Mathf.FloorToInt(worldPosition.y / chunkWorldSize),
+            Mathf.FloorToInt(worldPosition.z / chunkWorldSize)
+        );
+    }
+
+    public List<CpuTerrainChunk> GenerateChunksAroundChunkCoord(Vector3Int centerChunkCoord, int chunkRadiusX, int chunkRadiusY, int chunkRadiusZ) {
+        List<CpuTerrainChunk> createdChunks = new List<CpuTerrainChunk>();
+
+        for (int x = -chunkRadiusX; x <= chunkRadiusX; x++) {
+            for (int y = -chunkRadiusY; y <= chunkRadiusY; y++) {
+                for (int z = -chunkRadiusZ; z <= chunkRadiusZ; z++) {
+                    Vector3Int chunkCoord = centerChunkCoord + new Vector3Int(x, y, z);
+
+                    if (chunks.ContainsKey(chunkCoord)) {
+                        continue;
+                    }
+
+                    CpuTerrainChunk createdChunk = CreateChunk(chunkCoord);
+
+                    if (createdChunk != null) {
+                        createdChunks.Add(createdChunk);
+                    }
+                }
+            }
+        }
+
+        if (createdChunks.Count > 0) {
+            Debug.Log($"Generated {createdChunks.Count} new chunks around chunk {centerChunkCoord}.");
+        }
+
+        return createdChunks;
+    }
+
+    public List<CpuTerrainChunk> GenerateChunksAroundChunkSelection(IEnumerable<CpuTerrainChunk> sourceChunks, int chunkRadiusX, int chunkRadiusY, int chunkRadiusZ) {
+        List<CpuTerrainChunk> createdChunks = new List<CpuTerrainChunk>();
+
+        if (sourceChunks == null) {
+            Debug.LogWarning("Cannot generate chunks from selection. Source chunk collection is null.");
+            return createdChunks;
+        }
+
+        foreach (CpuTerrainChunk sourceChunk in sourceChunks) {
+            if (sourceChunk == null) {
+                continue;
+            }
+
+            List<CpuTerrainChunk> newlyCreatedChunks = GenerateChunksAroundChunkCoord(sourceChunk.ChunkCoord, chunkRadiusX, chunkRadiusY, chunkRadiusZ);
+            createdChunks.AddRange(newlyCreatedChunks);
+        }
+
+        Debug.Log($"Generated {createdChunks.Count} total chunks from selected chunk expansion.");
+        return createdChunks;
     }
 
     public void SaveAllChunks() {

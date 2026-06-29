@@ -30,6 +30,12 @@ public class TerrainAuthoringTool : TerrainModeTool {
     [Header("Terrain")]
     [SerializeField] private CpuTerrainChunkManager chunkManager;
 
+    [Header("Chunk Expansion")]
+    [SerializeField] private KeyCode generateNearbyChunksKey = KeyCode.G;
+    [SerializeField] private int generateRadiusX = 3;
+    [SerializeField] private int generateRadiusY = 0;
+    [SerializeField] private int generateRadiusZ = 3;
+
     private TerrainChunkBoxVisual hoverBoxVisual;
     private readonly Dictionary<CpuTerrainChunk, TerrainChunkBoxVisual> selectedBoxVisuals = new();
 
@@ -64,6 +70,7 @@ public class TerrainAuthoringTool : TerrainModeTool {
 
         HandleLook();
         HandleMovement();
+        HandleChunkExpansion();
         UpdateHoveredChunk();
         HandleChunkSelection();
         HandleSelectedChunkOperations();
@@ -260,8 +267,9 @@ public class TerrainAuthoringTool : TerrainModeTool {
         GUILayout.Label("Left Click: Select chunk");
         GUILayout.Label("Shift + Left Click: Add/remove chunk");
         GUILayout.Label("C: Clear selection");
-        GUILayout.Label("S: Save selected chunks");
+        GUILayout.Label("V: Save selected chunks");
         GUILayout.Label("R: Reset selected chunks to seed");
+        GUILayout.Label("G: Generate around selected chunks");
 
         string hoverText = hoveredChunk != null ? hoveredChunk.ChunkCoord.ToString() : "None";
         GUILayout.Label($"Hovered Chunk: {hoverText}");
@@ -357,4 +365,42 @@ public class TerrainAuthoringTool : TerrainModeTool {
 
         selectedBoxVisuals.Clear();
     }
+
+    private void HandleChunkExpansion() {
+        if (chunkManager == null) {
+            return;
+        }
+
+        if (!Input.GetKeyDown(generateNearbyChunksKey)) {
+            return;
+        }
+
+        if (selectedChunks.Count == 0) {
+            Debug.Log("Select at least one chunk before generating new chunks.");
+            return;
+        }
+
+        List<CpuTerrainChunk> createdChunks = chunkManager.GenerateChunksAroundChunkSelection(selectedChunks, generateRadiusX, generateRadiusY, generateRadiusZ);
+
+        for (int i = 0; i < createdChunks.Count; i++) {
+            if (createdChunks[i] != null) {
+                selectedChunks.Add(createdChunks[i]);
+            }
+        }
+
+        if (createdChunks.Count == 0) {
+            Debug.Log("No missing chunks around selected chunks.");
+        }
+    }
+
+    private Vector3Int GetFirstSelectedChunkCoord() {
+        foreach (CpuTerrainChunk chunk in selectedChunks) {
+            if (chunk != null) {
+                return chunk.ChunkCoord;
+            }
+        }
+
+        return Vector3Int.zero;
+    }
+
 }
