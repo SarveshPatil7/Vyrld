@@ -1,10 +1,16 @@
 using System;
 using UnityEngine;
 
+public enum TerrainNoiseMode {
+    HeightMap,
+    Volumetric
+}
+
 [Serializable]
 public class TerrainNoisePreset {
     [Header("Preset")]
     public string presetName = "Default";
+    public TerrainNoiseMode noiseMode = TerrainNoiseMode.HeightMap;
 
     [Header("Noise")]
     public int seed = 12345;
@@ -16,6 +22,10 @@ public class TerrainNoisePreset {
     public bool closeEdges = false;
     public float floorOffset = 8f;
     public float weightMultiplier = 1f;
+
+    [Header("Volumetric Noise")]
+    public float verticalNoiseScaleMultiplier = 1f;
+    public float densityOffset = 0f;
 
     [Header("Hard Floor")]
     public float hardFloorHeight = -32f;

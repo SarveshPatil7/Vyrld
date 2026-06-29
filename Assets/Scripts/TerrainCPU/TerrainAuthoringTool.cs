@@ -46,11 +46,10 @@ public class TerrainAuthoringTool : TerrainModeTool {
     [SerializeField] private int generateRadiusY = 2;
     [SerializeField] private int generateRadiusZ = 4;
 
-    [Header("Terrain Regions")]
-    [SerializeField] private KeyCode previousRegionKey = KeyCode.LeftBracket;
-    [SerializeField] private KeyCode nextRegionKey = KeyCode.RightBracket;
-    [SerializeField] private KeyCode assignRegionKey = KeyCode.B;
-    [SerializeField] private int activeRegionIndex = 0;
+    [Header("Noise Presets")]
+    [SerializeField] private KeyCode previousNoisePresetKey = KeyCode.LeftBracket;
+    [SerializeField] private KeyCode nextNoisePresetKey = KeyCode.RightBracket;
+    [SerializeField] private int activeNoisePresetIndex = 0;
 
     private TerrainChunkBoxVisual hoverBoxVisual;
     private readonly Dictionary<CpuTerrainChunk, TerrainChunkBoxVisual> selectedBoxVisuals = new();
@@ -96,7 +95,7 @@ public class TerrainAuthoringTool : TerrainModeTool {
             HandleChunkSelection();
         }
 
-        HandleRegionControls();
+        HandleNoisePresetControls();
         HandleSelectedChunkOperations();
         UpdateSelectionVisuals();
         UpdateAreaSelectionVisual();
@@ -280,7 +279,7 @@ public class TerrainAuthoringTool : TerrainModeTool {
             return;
         }
 
-        chunkManager.ResetChunksToSeed(selectedChunks);
+        chunkManager.ResetChunksWithNoisePreset(selectedChunks, activeNoisePresetIndex);
     }
 
     private void OnGUI() {
@@ -298,11 +297,10 @@ public class TerrainAuthoringTool : TerrainModeTool {
         GUILayout.Label("Shift + Left Click: Add/remove chunk");
         GUILayout.Label("C: Clear selection");
         GUILayout.Label("V: Save selected chunks");
-        GUILayout.Label("R: Reset selected chunks using region");
-        GUILayout.Label("G: Generate around selected chunks");
-        GUILayout.Label($"Active Region: {GetActiveRegionDisplayName()}");
-        GUILayout.Label("[ / ]: Cycle active region");
-        GUILayout.Label("B: Assign selected chunks to active region");
+        GUILayout.Label("R: Regenerate selected chunks with active noise preset");
+        GUILayout.Label("G: Generate around selected chunks with active noise preset");
+        GUILayout.Label($"Active Noise Preset: {GetActiveNoisePresetDisplayName()}");
+        GUILayout.Label("[ / ]: Cycle active noise preset");
         GUILayout.Label("X: Area select");
         GUILayout.Label("Esc: Cancel area selection");
 
@@ -421,7 +419,7 @@ public class TerrainAuthoringTool : TerrainModeTool {
             return;
         }
 
-        List<CpuTerrainChunk> createdChunks = chunkManager.GenerateChunksAroundChunkSelection(selectedChunks, generateRadiusX, generateRadiusY, generateRadiusZ);
+        List<CpuTerrainChunk> createdChunks = chunkManager.GenerateChunksAroundChunkSelection(selectedChunks, generateRadiusX, generateRadiusY, generateRadiusZ, activeNoisePresetIndex);
 
         for (int i = 0; i < createdChunks.Count; i++) {
             if (createdChunks[i] != null) {
@@ -444,67 +442,47 @@ public class TerrainAuthoringTool : TerrainModeTool {
         return Vector3Int.zero;
     }
 
-    private void HandleRegionControls() {
+    private void HandleNoisePresetControls() {
         if (chunkManager == null) {
             return;
         }
 
-        if (Input.GetKeyDown(previousRegionKey)) {
-            CycleActiveRegion(-1);
+        if (Input.GetKeyDown(previousNoisePresetKey)) {
+            CycleActiveNoisePreset(-1);
         }
 
-        if (Input.GetKeyDown(nextRegionKey)) {
-            CycleActiveRegion(1);
-        }
-
-        if (Input.GetKeyDown(assignRegionKey)) {
-            AssignActiveRegionToSelectedChunks();
+        if (Input.GetKeyDown(nextNoisePresetKey)) {
+            CycleActiveNoisePreset(1);
         }
     }
 
-    private void CycleActiveRegion(int direction) {
-        int regionCount = chunkManager.RegionCount;
+    private void CycleActiveNoisePreset(int direction) {
+        int noisePresetCount = chunkManager.NoisePresetCount;
 
-        if (regionCount <= 0) {
-            Debug.LogWarning("No terrain regions are configured.");
+        if (noisePresetCount <= 0) {
+            Debug.LogWarning("No terrain noise presets are configured.");
             return;
         }
 
-        activeRegionIndex += direction;
+        activeNoisePresetIndex += direction;
 
-        if (activeRegionIndex < 0) {
-            activeRegionIndex = regionCount - 1;
+        if (activeNoisePresetIndex < 0) {
+            activeNoisePresetIndex = noisePresetCount - 1;
         }
 
-        if (activeRegionIndex >= regionCount) {
-            activeRegionIndex = 0;
+        if (activeNoisePresetIndex >= noisePresetCount) {
+            activeNoisePresetIndex = 0;
         }
 
-        Debug.Log($"Active terrain region: {chunkManager.GetRegionDisplayName(activeRegionIndex)}");
+        Debug.Log($"Active noise preset: {chunkManager.GetNoisePresetDisplayName(activeNoisePresetIndex)}");
     }
 
-    private void AssignActiveRegionToSelectedChunks() {
-        if (selectedChunks.Count == 0) {
-            Debug.Log("No selected chunks to assign terrain region.");
-            return;
-        }
-
-        TerrainRegionDefinition activeRegion = chunkManager.GetRegionByIndex(activeRegionIndex);
-
-        if (activeRegion == null) {
-            Debug.LogWarning("Cannot assign terrain region. Active region is null.");
-            return;
-        }
-
-        chunkManager.AssignRegionToChunks(selectedChunks, activeRegion.RegionId);
-    }
-
-    private string GetActiveRegionDisplayName() {
+    private string GetActiveNoisePresetDisplayName() {
         if (chunkManager == null) {
             return "None";
         }
 
-        return chunkManager.GetRegionDisplayName(activeRegionIndex);
+        return chunkManager.GetNoisePresetDisplayName(activeNoisePresetIndex);
     }
 
     private bool HandleAreaSelection() {

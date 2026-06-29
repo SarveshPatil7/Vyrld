@@ -7,10 +7,6 @@ public static class DensityInitializer {
         FillFromNoisePreset(data, preset);
     }
 
-    public static void FillFromSeed(DensityChunkData data, int seed, TerrainRegionDefinition terrainRegion) {
-        FillFromNoisePreset(data, CreatePresetFromLegacyRegion(seed, terrainRegion));
-    }
-
     public static void FillFromNoisePreset(DensityChunkData data, TerrainNoisePreset noisePreset) {
         TerrainNoisePreset activePreset = noisePreset ?? TerrainNoisePreset.CreateDefault();
 
@@ -23,10 +19,6 @@ public static class DensityInitializer {
                 }
             }
         }
-    }
-
-    public static float EvaluateDensity(Vector3 worldPos, int seed, TerrainRegionDefinition terrainRegion) {
-        return EvaluateDensity(worldPos, CreatePresetFromLegacyRegion(seed, terrainRegion));
     }
 
     public static float EvaluateDensity(Vector3 worldPos, TerrainNoisePreset noisePreset) {
@@ -73,25 +65,6 @@ public static class DensityInitializer {
         }
 
         return noiseSum / amplitudeSum;
-    }
-
-    private static TerrainNoisePreset CreatePresetFromLegacyRegion(int seed, TerrainRegionDefinition terrainRegion) {
-        TerrainRegionDefinition activeRegion = terrainRegion ?? TerrainRegionDefinition.CreateDefault();
-
-        TerrainNoisePreset preset = TerrainNoisePreset.CreateDefault();
-        preset.presetName = activeRegion.RegionName;
-        preset.seed = seed + activeRegion.SeedOffset;
-        preset.numOctaves = 1;
-        preset.lacunarity = 2f;
-        preset.persistence = 0.5f;
-        preset.noiseScale = 1f / Mathf.Max(0.0001f, activeRegion.NoiseScale);
-        preset.noiseWeight = activeRegion.HeightVariation;
-        preset.floorOffset = activeRegion.BaseHeight;
-        preset.weightMultiplier = 1f;
-        preset.hardFloorHeight = -32f;
-        preset.hardFloorWeight = 0f;
-
-        return preset;
     }
 
     private static Vector2 GetOctaveOffset2D(int seed, int octaveIndex) {

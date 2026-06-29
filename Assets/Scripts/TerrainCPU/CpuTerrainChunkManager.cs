@@ -23,20 +23,66 @@ public class CpuTerrainChunkManager : MonoBehaviour {
     [Header("Undo")]
     [SerializeField] private int maxUndoSteps = 30;
 
-    [Header("Terrain Regions")]
-    [SerializeField] private int defaultRegionId = 0;
-    [SerializeField]
-    private List<TerrainRegionDefinition> terrainRegions = new List<TerrainRegionDefinition> {
-    new TerrainRegionDefinition(0, "Default", 0, 8f, 8f, 0.06f),
-    new TerrainRegionDefinition(1, "Flatlands", 1000, 7f, 2f, 0.035f),
-    new TerrainRegionDefinition(2, "Mountains", 2000, 10f, 18f, 0.08f),
-    new TerrainRegionDefinition(3, "Ocean", 3000, 1f, 4f, 0.045f)
-    };
+    [Header("Noise Presets")]
+    [SerializeField] private int defaultNoisePresetIndex = 0;
+    [SerializeField] private List<TerrainNoisePreset> noisePresets = new List<TerrainNoisePreset> {
+    new TerrainNoisePreset {
+        presetName = "Default",
+        seed = 12345,
+        numOctaves = 4,
+        lacunarity = 2f,
+        persistence = 0.5f,
+        noiseScale = 24f,
+        noiseWeight = 8f,
+        floorOffset = 8f,
+        weightMultiplier = 1f,
+        hardFloorHeight = -32f,
+        hardFloorWeight = 0f
+    },
+    new TerrainNoisePreset {
+        presetName = "Flatlands",
+        seed = 12345,
+        numOctaves = 3,
+        lacunarity = 2f,
+        persistence = 0.4f,
+        noiseScale = 36f,
+        noiseWeight = 2f,
+        floorOffset = 7f,
+        weightMultiplier = 1f,
+        hardFloorHeight = -32f,
+        hardFloorWeight = 0f
+    },
+    new TerrainNoisePreset {
+        presetName = "Mountains",
+        seed = 12345,
+        numOctaves = 5,
+        lacunarity = 2.1f,
+        persistence = 0.55f,
+        noiseScale = 28f,
+        noiseWeight = 18f,
+        floorOffset = 10f,
+        weightMultiplier = 1f,
+        hardFloorHeight = -32f,
+        hardFloorWeight = 0f
+    },
+    new TerrainNoisePreset {
+        presetName = "Ocean",
+        seed = 12345,
+        numOctaves = 4,
+        lacunarity = 2f,
+        persistence = 0.45f,
+        noiseScale = 40f,
+        noiseWeight = 4f,
+        floorOffset = 1f,
+        weightMultiplier = 1f,
+        hardFloorHeight = -32f,
+        hardFloorWeight = 0f
+    }
+};
 
-    [SerializeField] private int regionBlendSearchRadiusX = 1;
-    [SerializeField] private int regionBlendSearchRadiusY = 1;
-    [SerializeField] private int regionBlendSearchRadiusZ = 1;
-    [SerializeField] private float regionBlendDistanceInChunks = 1.5f;
+    [Header("Vertical Generation Limits")]
+    [SerializeField] private int minGeneratedChunkY = -2;
+    [SerializeField] private int maxGeneratedChunkY = 4;
 
     private TerrainEditUndoSystem undoSystem;
 
@@ -61,10 +107,10 @@ public class CpuTerrainChunkManager : MonoBehaviour {
     }
 
     private CpuTerrainChunk CreateChunk(Vector3Int chunkCoord) {
-        return CreateChunk(chunkCoord, defaultRegionId);
+        return CreateChunk(chunkCoord, defaultNoisePresetIndex);
     }
 
-    private CpuTerrainChunk CreateChunk(Vector3Int chunkCoord, int regionId) {
+    private CpuTerrainChunk CreateChunk(Vector3Int chunkCoord, int noisePresetIndex) {
         if (chunks.TryGetValue(chunkCoord, out CpuTerrainChunk existingChunk)) {
             return existingChunk;
         }
@@ -74,15 +120,14 @@ public class CpuTerrainChunkManager : MonoBehaviour {
             return null;
         }
 
-        TerrainRegionDefinition terrainRegion = GetRegionById(regionId);
+        TerrainNoisePreset noisePreset = GetNoisePresetByIndex(noisePresetIndex);
 
         CpuTerrainChunk chunk = Instantiate(chunkPrefab, transform);
 
         chunk.name = $"CPU_Terrain_Chunk_{chunkCoord.x}_{chunkCoord.y}_{chunkCoord.z}";
-        chunks.Add(chunkCoord, chunk);
+        chunk.Initialize(chunkCoord, cellCount, cellSize, seed, loadSavedChunksOnStart, worldName, noisePreset);
 
-        chunk.SetSeedDensityEvaluator(EvaluateBlendedRegionDensity);
-        chunk.Initialize(chunkCoord, cellCount, cellSize, seed, loadSavedChunksOnStart, worldName, terrainRegion);
+        chunks.Add(chunkCoord, chunk);
 
         return chunk;
     }
@@ -112,7 +157,7 @@ public class CpuTerrainChunkManager : MonoBehaviour {
         );
     }
 
-    public List<CpuTerrainChunk> GenerateChunksAroundChunkCoord(Vector3Int centerChunkCoord, int chunkRadiusX, int chunkRadiusY, int chunkRadiusZ, int sourceRegionId) {
+    public List<CpuTerrainChunk> GenerateChunksAroundChunkCoord(Vector3Int centerChunkCoord, int chunkRadiusX, int chunkRadiusY, int chunkRadiusZ, int noisePresetIndex) {
         List<CpuTerrainChunk> createdChunks = new List<CpuTerrainChunk>();
 
         for (int x = -chunkRadiusX; x <= chunkRadiusX; x++) {
@@ -124,7 +169,7 @@ public class CpuTerrainChunkManager : MonoBehaviour {
                         continue;
                     }
 
-                    CpuTerrainChunk createdChunk = CreateChunk(chunkCoord, sourceRegionId);
+                    CpuTerrainChunk createdChunk = CreateChunk(chunkCoord, noisePresetIndex);
 
                     if (createdChunk != null) {
                         createdChunks.Add(createdChunk);
@@ -134,15 +179,13 @@ public class CpuTerrainChunkManager : MonoBehaviour {
         }
 
         if (createdChunks.Count > 0) {
-            TerrainRegionDefinition region = GetRegionById(sourceRegionId);
-            string regionName = region != null ? region.GetDisplayName() : "Unknown";
-            Debug.Log($"Generated {createdChunks.Count} new chunks around chunk {centerChunkCoord} using region {regionName}.");
+            Debug.Log($"Generated {createdChunks.Count} new chunks around chunk {centerChunkCoord} using noise preset {GetNoisePresetDisplayName(noisePresetIndex)}.");
         }
 
         return createdChunks;
     }
 
-    public List<CpuTerrainChunk> GenerateChunksAroundChunkSelection(IEnumerable<CpuTerrainChunk> sourceChunks, int chunkRadiusX, int chunkRadiusY, int chunkRadiusZ) {
+    public List<CpuTerrainChunk> GenerateChunksAroundChunkSelection(IEnumerable<CpuTerrainChunk> sourceChunks, int chunkRadiusX, int chunkRadiusY, int chunkRadiusZ, int noisePresetIndex) {
         List<CpuTerrainChunk> createdChunks = new List<CpuTerrainChunk>();
 
         if (sourceChunks == null) {
@@ -150,24 +193,44 @@ public class CpuTerrainChunkManager : MonoBehaviour {
             return createdChunks;
         }
 
-        List<CpuTerrainChunk> sourceChunkList = new List<CpuTerrainChunk>();
+        HashSet<Vector2Int> targetColumns = new HashSet<Vector2Int>();
 
         foreach (CpuTerrainChunk sourceChunk in sourceChunks) {
-            if (sourceChunk != null) {
-                sourceChunkList.Add(sourceChunk);
+            if (sourceChunk == null) {
+                continue;
+            }
+
+            for (int x = -chunkRadiusX; x <= chunkRadiusX; x++) {
+                for (int z = -chunkRadiusZ; z <= chunkRadiusZ; z++) {
+                    Vector3Int sourceCoord = sourceChunk.ChunkCoord;
+                    targetColumns.Add(new Vector2Int(sourceCoord.x + x, sourceCoord.z + z));
+                }
             }
         }
 
-        for (int i = 0; i < sourceChunkList.Count; i++) {
-            CpuTerrainChunk sourceChunk = sourceChunkList[i];
-            List<CpuTerrainChunk> newlyCreatedChunks = GenerateChunksAroundChunkCoord(sourceChunk.ChunkCoord, chunkRadiusX, chunkRadiusY, chunkRadiusZ, sourceChunk.RegionId);
-            createdChunks.AddRange(newlyCreatedChunks);
+        int minY = GetMinGeneratedChunkY();
+        int maxY = GetMaxGeneratedChunkY();
+
+        foreach (Vector2Int columnCoord in targetColumns) {
+            for (int y = minY; y <= maxY; y++) {
+                Vector3Int chunkCoord = new Vector3Int(columnCoord.x, y, columnCoord.y);
+
+                if (chunks.ContainsKey(chunkCoord)) {
+                    continue;
+                }
+
+                CpuTerrainChunk createdChunk = CreateChunk(chunkCoord, noisePresetIndex);
+
+                if (createdChunk != null) {
+                    createdChunks.Add(createdChunk);
+                }
+            }
         }
 
-        Debug.Log($"Generated {createdChunks.Count} total chunks from selected chunk expansion.");
+        Debug.Log($"Generated {createdChunks.Count} chunks in vertical columns using noise preset {GetNoisePresetDisplayName(noisePresetIndex)}.");
         return createdChunks;
     }
-
+    
     public void SaveAllChunks() {
         SaveWorldMetadata();
 
@@ -239,54 +302,27 @@ public class CpuTerrainChunkManager : MonoBehaviour {
         Debug.Log($"Saved {savedCount} selected CPU terrain chunks to world: {worldName}");
     }
 
-    public void ResetChunksToSeed(IEnumerable<CpuTerrainChunk> chunksToReset) {
+    public void ResetChunksWithNoisePreset(IEnumerable<CpuTerrainChunk> chunksToReset, int noisePresetIndex) {
         if (chunksToReset == null) {
             Debug.LogWarning("Cannot reset selected chunks. Chunk collection is null.");
             return;
         }
 
-        HashSet<Vector3Int> chunkCoordsToReset = new HashSet<Vector3Int>();
-        int selectedCount = 0;
-
-        int safeSearchRadiusX = Mathf.Max(0, regionBlendSearchRadiusX);
-        int safeSearchRadiusY = Mathf.Max(0, regionBlendSearchRadiusY);
-        int safeSearchRadiusZ = Mathf.Max(0, regionBlendSearchRadiusZ);
+        TerrainNoisePreset noisePreset = GetNoisePresetByIndex(noisePresetIndex);
+        int resetCount = 0;
 
         foreach (CpuTerrainChunk chunk in chunksToReset) {
             if (chunk == null) {
                 continue;
             }
 
-            selectedCount++;
-
-            for (int x = -safeSearchRadiusX; x <= safeSearchRadiusX; x++) {
-                for (int y = -safeSearchRadiusY; y <= safeSearchRadiusY; y++) {
-                    for (int z = -safeSearchRadiusZ; z <= safeSearchRadiusZ; z++) {
-                        Vector3Int resetCoord = chunk.ChunkCoord + new Vector3Int(x, y, z);
-                        chunkCoordsToReset.Add(resetCoord);
-                    }
-                }
-            }
-        }
-
-        int resetCount = 0;
-
-        foreach (Vector3Int chunkCoord in chunkCoordsToReset) {
-            if (!chunks.TryGetValue(chunkCoord, out CpuTerrainChunk chunk)) {
-                continue;
-            }
-
-            if (chunk == null) {
-                continue;
-            }
-
-            chunk.ResetChunkToSeed();
+            chunk.SetNoisePreset(noisePreset, regenerate: true);
             resetCount++;
         }
 
         ClearUndoHistory();
 
-        Debug.Log($"Reset {resetCount} CPU terrain chunks using blended regions from {selectedCount} selected chunks.");
+        Debug.Log($"Reset {resetCount} selected CPU terrain chunks using noise preset {noisePreset.GetDisplayName()}.");
     }
 
     public void ApplyBrushEdit(Vector3 worldCenter, float radius, float strength, CpuTerrainBrushType brushType, CpuTerrainFlattenMode flattenMode, float roughnessScale, float roughnessAmount) {
@@ -504,7 +540,7 @@ public class CpuTerrainChunkManager : MonoBehaviour {
     }
 
     private void Awake() {
-        EnsureTerrainRegions();
+        EnsureNoisePresets();
         undoSystem = new TerrainEditUndoSystem(maxUndoSteps);
     }
 
@@ -582,139 +618,6 @@ public class CpuTerrainChunkManager : MonoBehaviour {
         }
     }
 
-    private void EnsureTerrainRegions() {
-        if (terrainRegions == null) {
-            terrainRegions = new List<TerrainRegionDefinition>();
-        }
-
-        if (terrainRegions.Count == 0) {
-            terrainRegions.Add(TerrainRegionDefinition.CreateDefault());
-        }
-    }
-
-    public int RegionCount {
-        get {
-            EnsureTerrainRegions();
-            return terrainRegions.Count;
-        }
-    }
-
-    public TerrainRegionDefinition GetRegionByIndex(int regionIndex) {
-        EnsureTerrainRegions();
-
-        if (terrainRegions.Count == 0) {
-            return TerrainRegionDefinition.CreateDefault();
-        }
-
-        int safeIndex = Mathf.Clamp(regionIndex, 0, terrainRegions.Count - 1);
-        return terrainRegions[safeIndex];
-    }
-
-    public TerrainRegionDefinition GetRegionById(int targetRegionId) {
-        EnsureTerrainRegions();
-
-        for (int i = 0; i < terrainRegions.Count; i++) {
-            TerrainRegionDefinition region = terrainRegions[i];
-
-            if (region != null && region.RegionId == targetRegionId) {
-                return region;
-            }
-        }
-
-        return terrainRegions[0] ?? TerrainRegionDefinition.CreateDefault();
-    }
-
-    public string GetRegionDisplayName(int regionIndex) {
-        TerrainRegionDefinition region = GetRegionByIndex(regionIndex);
-        return region != null ? region.GetDisplayName() : "None";
-    }
-
-    public void AssignRegionToChunks(IEnumerable<CpuTerrainChunk> chunksToAssign, int regionId) {
-        if (chunksToAssign == null) {
-            Debug.LogWarning("Cannot assign terrain region. Chunk collection is null.");
-            return;
-        }
-
-        TerrainRegionDefinition terrainRegion = GetRegionById(regionId);
-        int assignedCount = 0;
-
-        foreach (CpuTerrainChunk chunk in chunksToAssign) {
-            if (chunk == null) {
-                continue;
-            }
-
-            chunk.SetTerrainRegion(terrainRegion, regenerate: false);
-            assignedCount++;
-        }
-
-        Debug.Log($"Assigned terrain region {terrainRegion.GetDisplayName()} to {assignedCount} selected chunks.");
-    }
-
-    public float EvaluateBlendedRegionDensity(Vector3 worldPosition) {
-        EnsureTerrainRegions();
-
-        Vector3Int centerChunkCoord = WorldToChunkCoord(worldPosition);
-
-        int safeSearchRadiusX = Mathf.Max(0, regionBlendSearchRadiusX);
-        int safeSearchRadiusY = Mathf.Max(0, regionBlendSearchRadiusY);
-        int safeSearchRadiusZ = Mathf.Max(0, regionBlendSearchRadiusZ);
-
-        float chunkWorldSize = cellCount * cellSize;
-        float blendDistance = Mathf.Max(0.001f, chunkWorldSize * regionBlendDistanceInChunks);
-
-        float weightedDensitySum = 0f;
-        float totalWeight = 0f;
-
-        for (int x = -safeSearchRadiusX; x <= safeSearchRadiusX; x++) {
-            for (int y = -safeSearchRadiusY; y <= safeSearchRadiusY; y++) {
-                for (int z = -safeSearchRadiusZ; z <= safeSearchRadiusZ; z++) {
-                    Vector3Int sampleChunkCoord = centerChunkCoord + new Vector3Int(x, y, z);
-
-                    if (!chunks.TryGetValue(sampleChunkCoord, out CpuTerrainChunk chunk)) {
-                        continue;
-                    }
-
-                    if (chunk == null) {
-                        continue;
-                    }
-
-                    Vector3 chunkCenter = GetChunkWorldCenter(sampleChunkCoord);
-                    float distance = Vector3.Distance(worldPosition, chunkCenter);
-
-                    float weight = 1f - Mathf.Clamp01(distance / blendDistance);
-                    weight = weight * weight * (3f - 2f * weight);
-
-                    if (weight <= 0.0001f) {
-                        continue;
-                    }
-
-                    TerrainRegionDefinition terrainRegion = GetRegionById(chunk.RegionId);
-                    float density = DensityInitializer.EvaluateDensity(worldPosition, seed, terrainRegion);
-
-                    weightedDensitySum += density * weight;
-                    totalWeight += weight;
-                }
-            }
-        }
-
-        if (totalWeight <= 0.0001f) {
-            TerrainRegionDefinition fallbackRegion = GetRegionById(defaultRegionId);
-            return DensityInitializer.EvaluateDensity(worldPosition, seed, fallbackRegion);
-        }
-
-        return weightedDensitySum / totalWeight;
-    }
-
-    private Vector3 GetChunkWorldCenter(Vector3Int chunkCoord) {
-        float chunkWorldSize = cellCount * cellSize;
-
-        return new Vector3(
-            chunkCoord.x * chunkWorldSize + chunkWorldSize * 0.5f,
-            chunkCoord.y * chunkWorldSize + chunkWorldSize * 0.5f,
-            chunkCoord.z * chunkWorldSize + chunkWorldSize * 0.5f
-        );
-    }
-
     public List<CpuTerrainChunk> GetChunksInCoordArea(Vector3Int firstCoord, Vector3Int secondCoord) {
         List<CpuTerrainChunk> areaChunks = new List<CpuTerrainChunk>();
 
@@ -780,5 +683,46 @@ public class CpuTerrainChunkManager : MonoBehaviour {
             Mathf.Max(firstCoord.y, secondCoord.y),
             Mathf.Max(firstCoord.z, secondCoord.z)
         );
+    }
+
+    private void EnsureNoisePresets() {
+        if (noisePresets == null) {
+            noisePresets = new List<TerrainNoisePreset>();
+        }
+
+        if (noisePresets.Count == 0) {
+            noisePresets.Add(TerrainNoisePreset.CreateDefault());
+        }
+    }
+
+    public int NoisePresetCount {
+        get {
+            EnsureNoisePresets();
+            return noisePresets.Count;
+        }
+    }
+
+    public TerrainNoisePreset GetNoisePresetByIndex(int noisePresetIndex) {
+        EnsureNoisePresets();
+
+        if (noisePresets.Count == 0) {
+            return TerrainNoisePreset.CreateDefault();
+        }
+
+        int safeIndex = Mathf.Clamp(noisePresetIndex, 0, noisePresets.Count - 1);
+        return noisePresets[safeIndex];
+    }
+
+    public string GetNoisePresetDisplayName(int noisePresetIndex) {
+        TerrainNoisePreset noisePreset = GetNoisePresetByIndex(noisePresetIndex);
+        return noisePreset != null ? noisePreset.GetDisplayName() : "None";
+    }
+
+    private int GetMinGeneratedChunkY() {
+        return Mathf.Min(minGeneratedChunkY, maxGeneratedChunkY);
+    }
+
+    private int GetMaxGeneratedChunkY() {
+        return Mathf.Max(minGeneratedChunkY, maxGeneratedChunkY);
     }
 }

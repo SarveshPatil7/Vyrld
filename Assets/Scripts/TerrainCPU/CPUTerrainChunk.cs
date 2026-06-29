@@ -27,19 +27,14 @@ public class CpuTerrainChunk : MonoBehaviour {
     [SerializeField] private bool showChunkLabel = true;
     [SerializeField] private Color chunkBoundsColor = new Color(0.5f, 0.5f, 0.5f, 0.25f);
 
-    [SerializeField] private int regionId = 0;
-
-    private TerrainRegionDefinition terrainRegion;
+    [SerializeField] private TerrainNoisePreset noisePreset;
 
     private MeshFilter meshFilter;
     private MeshCollider meshCollider;
     private DensityChunkData densityData;
     public Vector3Int ChunkCoord => chunkCoord;
     public DensityChunkData DensityData => densityData;
-    public int RegionId => regionId;
-    public string RegionName => terrainRegion != null ? terrainRegion.RegionName : "None";
-
-    private Func<Vector3, float> seedDensityEvaluator;
+    public string NoisePresetName => noisePreset != null ? noisePreset.presetName : "None";
 
     private void Awake() {
         meshFilter = GetComponent<MeshFilter>();
@@ -53,7 +48,7 @@ public class CpuTerrainChunk : MonoBehaviour {
     }
 
     public void GenerateNewChunk() {
-        EnsureTerrainRegion();
+        EnsureNoisePreset();
 
         UpdateChunkTransformPosition();
 
@@ -167,7 +162,7 @@ public class CpuTerrainChunk : MonoBehaviour {
     }
 
     public void ResetChunkToSeed() {
-        EnsureTerrainRegion();
+        EnsureNoisePreset();
 
         densityData = new DensityChunkData(chunkCoord, cellCount, cellSize);
         FillDensityFromSeed();
@@ -175,15 +170,15 @@ public class CpuTerrainChunk : MonoBehaviour {
         RebuildMesh();
     }
 
-    public void Initialize(Vector3Int chunkCoord, int cellCount, float cellSize, int seed, bool loadSavedChunkOnStart, string worldName, 
-                            TerrainRegionDefinition terrainRegion) {
+    public void Initialize(Vector3Int chunkCoord, int cellCount, float cellSize, int seed, bool loadSavedChunkOnStart, string worldName,
+                            TerrainNoisePreset noisePreset) {
         this.worldName = worldName;
         this.chunkCoord = chunkCoord;
         this.cellCount = cellCount;
         this.cellSize = cellSize;
         this.seed = seed;
 
-        SetTerrainRegion(terrainRegion, regenerate: false);
+        SetNoisePreset(noisePreset, regenerate: false);
 
         UpdateChunkTransformPosition();
 
@@ -255,26 +250,20 @@ public class CpuTerrainChunk : MonoBehaviour {
         }
     }
 
-    public void SetTerrainRegion(TerrainRegionDefinition newTerrainRegion, bool regenerate) {
-        terrainRegion = newTerrainRegion ?? TerrainRegionDefinition.CreateDefault();
-        regionId = terrainRegion.RegionId;
+    public void SetNoisePreset(TerrainNoisePreset newNoisePreset, bool regenerate) {
+        noisePreset = newNoisePreset ?? TerrainNoisePreset.CreateDefault();
 
         if (regenerate) {
             ResetChunkToSeed();
         }
     }
 
-    public void SetSeedDensityEvaluator(Func<Vector3, float> newSeedDensityEvaluator) {
-        seedDensityEvaluator = newSeedDensityEvaluator;
-    }
-
-    private void EnsureTerrainRegion() {
-        if (terrainRegion != null) {
+    private void EnsureNoisePreset() {
+        if (noisePreset != null) {
             return;
         }
 
-        terrainRegion = TerrainRegionDefinition.CreateDefault();
-        regionId = terrainRegion.RegionId;
+        noisePreset = TerrainNoisePreset.CreateDefault();
     }
 
     private void FillDensityFromSeed() {
@@ -295,11 +284,7 @@ public class CpuTerrainChunk : MonoBehaviour {
     }
 
     private float EvaluateSeedDensity(Vector3 worldPosition) {
-        if (seedDensityEvaluator != null) {
-            return seedDensityEvaluator(worldPosition);
-        }
-
-        EnsureTerrainRegion();
-        return DensityInitializer.EvaluateDensity(worldPosition, seed, terrainRegion);
+        EnsureNoisePreset();
+        return DensityInitializer.EvaluateDensity(worldPosition, noisePreset);
     }
 }
