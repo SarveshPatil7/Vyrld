@@ -1,6 +1,9 @@
-using UnityEditor;
 using UnityEngine;
 using System;
+
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 [RequireComponent(typeof(MeshFilter))]
 [RequireComponent(typeof(MeshRenderer))]
@@ -208,5 +211,26 @@ public class CpuTerrainChunk : MonoBehaviour {
 
         Array.Copy(densitySnapshot, targetDensityArray, targetDensityArray.Length);
         RebuildMesh();
+    }
+
+    private void OnDrawGizmos() {
+        if (!showChunkBounds) {
+            return;
+        }
+
+        float chunkWorldSize = cellCount * cellSize;
+        Vector3 chunkCenter = transform.position + Vector3.one * chunkWorldSize * 0.5f;
+        Vector3 chunkSize = Vector3.one * chunkWorldSize;
+
+        Color previousColor = Gizmos.color;
+        Gizmos.color = chunkBoundsColor;
+        Gizmos.DrawWireCube(chunkCenter, chunkSize);
+        Gizmos.color = previousColor;
+
+    #if UNITY_EDITOR
+        if (showChunkLabel) {
+            Handles.Label(chunkCenter, $"Chunk {chunkCoord}");
+        }
+    #endif
     }
 }
