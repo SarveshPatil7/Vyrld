@@ -126,6 +126,50 @@ public class CpuTerrainChunkManager : MonoBehaviour {
         Debug.Log($"Reset {chunks.Count} CPU terrain chunks to seed default.");
     }
 
+    public void SaveChunks(IEnumerable<CpuTerrainChunk> chunksToSave) {
+        if (chunksToSave == null) {
+            Debug.LogWarning("Cannot save selected chunks. Chunk collection is null.");
+            return;
+        }
+
+        SaveWorldMetadata();
+
+        int savedCount = 0;
+
+        foreach (CpuTerrainChunk chunk in chunksToSave) {
+            if (chunk == null) {
+                continue;
+            }
+
+            chunk.SaveChunk();
+            savedCount++;
+        }
+
+        Debug.Log($"Saved {savedCount} selected CPU terrain chunks to world: {worldName}");
+    }
+
+    public void ResetChunksToSeed(IEnumerable<CpuTerrainChunk> chunksToReset) {
+        if (chunksToReset == null) {
+            Debug.LogWarning("Cannot reset selected chunks. Chunk collection is null.");
+            return;
+        }
+
+        int resetCount = 0;
+
+        foreach (CpuTerrainChunk chunk in chunksToReset) {
+            if (chunk == null) {
+                continue;
+            }
+
+            chunk.ResetChunkToSeed();
+            resetCount++;
+        }
+
+        ClearUndoHistory();
+
+        Debug.Log($"Reset {resetCount} selected CPU terrain chunks to seed default.");
+    }
+
     public void ApplyBrushEdit(Vector3 worldCenter, float radius, float strength, CpuTerrainBrushType brushType, CpuTerrainFlattenMode flattenMode, float roughnessScale, float roughnessAmount) {
         CpuTerrainBrushContext brushContext = BuildBrushContext(worldCenter, radius, brushType, flattenMode);
         List<CpuTerrainChunk> editedChunks = new List<CpuTerrainChunk>();

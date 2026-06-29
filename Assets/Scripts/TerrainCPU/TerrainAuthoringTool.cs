@@ -27,6 +27,9 @@ public class TerrainAuthoringTool : TerrainModeTool {
     [SerializeField] private bool showSelectionInGameView = true;
     [SerializeField] private float selectionLineWidth = 0.05f;
 
+    [Header("Terrain")]
+    [SerializeField] private CpuTerrainChunkManager chunkManager;
+
     private TerrainChunkBoxVisual hoverBoxVisual;
     private readonly Dictionary<CpuTerrainChunk, TerrainChunkBoxVisual> selectedBoxVisuals = new();
 
@@ -47,6 +50,10 @@ public class TerrainAuthoringTool : TerrainModeTool {
             pitch = currentEuler.x;
         }
 
+        if (chunkManager == null) {
+            chunkManager = FindAnyObjectByType<CpuTerrainChunkManager>();
+        }
+
         hoverBoxVisual = new TerrainChunkBoxVisual("Hovered Terrain Chunk", hoverColor, selectionLineWidth);
     }
 
@@ -59,6 +66,7 @@ public class TerrainAuthoringTool : TerrainModeTool {
         HandleMovement();
         UpdateHoveredChunk();
         HandleChunkSelection();
+        HandleSelectedChunkOperations();
         UpdateSelectionVisuals();
     }
 
@@ -206,12 +214,44 @@ public class TerrainAuthoringTool : TerrainModeTool {
         }
     }
 
+    private void HandleSelectedChunkOperations() {
+        if (chunkManager == null) {
+            return;
+        }
+
+        if (Input.GetKeyDown(KeyCode.V)) {
+            SaveSelectedChunks();
+        }
+
+        if (Input.GetKeyDown(KeyCode.R)) {
+            ResetSelectedChunksToSeed();
+        }
+    }
+
+    private void SaveSelectedChunks() {
+        if (selectedChunks.Count == 0) {
+            Debug.Log("No selected chunks to save.");
+            return;
+        }
+
+        chunkManager.SaveChunks(selectedChunks);
+    }
+
+    private void ResetSelectedChunksToSeed() {
+        if (selectedChunks.Count == 0) {
+            Debug.Log("No selected chunks to reset.");
+            return;
+        }
+
+        chunkManager.ResetChunksToSeed(selectedChunks);
+    }
+
     private void OnGUI() {
         if (!showAuthoringOverlay || !enabled) {
             return;
         }
 
-        GUILayout.BeginArea(new Rect(15f, 15f, 360f, 170f), GUI.skin.box);
+        GUILayout.BeginArea(new Rect(15f, 15f, 380f, 210f), GUI.skin.box);
 
         GUILayout.Label("Authoring Mode");
         GUILayout.Label("WASD: Move freecam");
@@ -220,6 +260,8 @@ public class TerrainAuthoringTool : TerrainModeTool {
         GUILayout.Label("Left Click: Select chunk");
         GUILayout.Label("Shift + Left Click: Add/remove chunk");
         GUILayout.Label("C: Clear selection");
+        GUILayout.Label("S: Save selected chunks");
+        GUILayout.Label("R: Reset selected chunks to seed");
 
         string hoverText = hoveredChunk != null ? hoveredChunk.ChunkCoord.ToString() : "None";
         GUILayout.Label($"Hovered Chunk: {hoverText}");
