@@ -23,6 +23,16 @@ public class TerrainAuthoringTool : TerrainModeTool {
     [SerializeField] private Color selectedColor = new Color(0f, 1f, 1f, 0.8f);
     [SerializeField] private bool showAuthoringOverlay = true;
 
+    [Header("Area Selection")]
+    [SerializeField] private KeyCode areaSelectionKey = KeyCode.X;
+    [SerializeField] private KeyCode cancelAreaSelectionKey = KeyCode.Escape;
+    [SerializeField] private Color areaSelectionPreviewColor = new Color(1f, 0.5f, 0f, 0.9f);
+
+    private bool isAreaSelectionActive;
+    private bool hasAreaSelectionStart;
+    private Vector3Int areaSelectionStartCoord;
+    private TerrainChunkBoxVisual areaSelectionBoxVisual;
+
     [Header("Chunk Selection Visuals")]
     [SerializeField] private bool showSelectionInGameView = true;
     [SerializeField] private float selectionLineWidth = 0.05f;
@@ -32,9 +42,9 @@ public class TerrainAuthoringTool : TerrainModeTool {
 
     [Header("Chunk Expansion")]
     [SerializeField] private KeyCode generateNearbyChunksKey = KeyCode.G;
-    [SerializeField] private int generateRadiusX = 3;
-    [SerializeField] private int generateRadiusY = 0;
-    [SerializeField] private int generateRadiusZ = 3;
+    [SerializeField] private int generateRadiusX = 4;
+    [SerializeField] private int generateRadiusY = 2;
+    [SerializeField] private int generateRadiusZ = 4;
 
     [Header("Terrain Regions")]
     [SerializeField] private KeyCode previousRegionKey = KeyCode.LeftBracket;
@@ -67,6 +77,7 @@ public class TerrainAuthoringTool : TerrainModeTool {
         }
 
         hoverBoxVisual = new TerrainChunkBoxVisual("Hovered Terrain Chunk", hoverColor, selectionLineWidth);
+        areaSelectionBoxVisual = new TerrainChunkBoxVisual("Area Selection Preview", areaSelectionPreviewColor, selectionLineWidth);
     }
 
     private void Update() {
@@ -78,10 +89,17 @@ public class TerrainAuthoringTool : TerrainModeTool {
         HandleMovement();
         HandleChunkExpansion();
         UpdateHoveredChunk();
-        HandleChunkSelection();
+
+        bool areaSelectionConsumedInput = HandleAreaSelection();
+
+        if (!areaSelectionConsumedInput) {
+            HandleChunkSelection();
+        }
+
         HandleRegionControls();
         HandleSelectedChunkOperations();
         UpdateSelectionVisuals();
+        UpdateAreaSelectionVisual();
     }
 
     public override void EnterMode() {
@@ -105,6 +123,11 @@ public class TerrainAuthoringTool : TerrainModeTool {
         Debug.Log("Exited Terrain Authoring mode.");
         HideSelectionVisuals();
         hoveredChunk = null;
+
+        if (areaSelectionBoxVisual != null) {
+            areaSelectionBoxVisual.SetVisible(false);
+        }
+
         base.ExitMode();
     }
 
@@ -265,7 +288,7 @@ public class TerrainAuthoringTool : TerrainModeTool {
             return;
         }
 
-        GUILayout.BeginArea(new Rect(15f, 15f, 600f, 270f), GUI.skin.box);
+        GUILayout.BeginArea(new Rect(15f, 15f, 600f, 370f), GUI.skin.box);
 
         GUILayout.Label("Authoring Mode");
         GUILayout.Label("WASD: Move freecam");
@@ -280,10 +303,13 @@ public class TerrainAuthoringTool : TerrainModeTool {
         GUILayout.Label($"Active Region: {GetActiveRegionDisplayName()}");
         GUILayout.Label("[ / ]: Cycle active region");
         GUILayout.Label("B: Assign selected chunks to active region");
+        GUILayout.Label("X: Area select");
+        GUILayout.Label("Esc: Cancel area selection");
 
         string hoverText = hoveredChunk != null ? hoveredChunk.ChunkCoord.ToString() : "None";
         GUILayout.Label($"Hovered Chunk: {hoverText}");
         GUILayout.Label($"Selected Chunks: {selectedChunks.Count}");
+        GUILayout.Label($"Area Selection: {(isAreaSelectionActive ? "Active" : "Off")}");
 
         GUILayout.EndArea();
     }
@@ -371,6 +397,11 @@ public class TerrainAuthoringTool : TerrainModeTool {
             if (visual != null) {
                 visual.Dispose();
             }
+        }
+
+        if (areaSelectionBoxVisual != null) {
+            areaSelectionBoxVisual.Dispose();
+            areaSelectionBoxVisual = null;
         }
 
         selectedBoxVisuals.Clear();
@@ -474,6 +505,102 @@ public class TerrainAuthoringTool : TerrainModeTool {
         }
 
         return chunkManager.GetRegionDisplayName(activeRegionIndex);
+    }
+
+    private bool HandleAreaSelection() {
+        if (Input.GetKeyDown(areaSelectionKey)) {
+            BeginAreaSelection();
+            return true;
+        }
+
+        if (!isAreaSelectionActive) {
+            return false;
+        }
+
+        if (Input.GetKeyDown(cancelAreaSelectionKey)) {
+            CancelAreaSelection();
+            return true;
+        }
+
+        if (!Input.GetMouseButtonDown(0)) {
+            return false;
+        }
+
+        if (hoveredChunk == null) {
+            Debug.Log("Area selection needs a hovered chunk.");
+            return true;
+        }
+
+        if (!hasAreaSelectionStart) {
+            areaSelectionStartCoord = hoveredChunk.ChunkCoord;
+            hasAreaSelectionStart = true;
+            Debug.Log($"Area selection start chunk: {areaSelectionStartCoord}");
+            return true;
+        }
+
+        CompleteAreaSelection(hoveredChunk.ChunkCoord);
+        return true;
+    }
+
+    private void BeginAreaSelection() {
+        isAreaSelectionActive = true;
+        hasAreaSelectionStart = false;
+        Debug.Log("Area selection started. Click first chunk, then click opposite chunk.");
+    }
+
+    private void CancelAreaSelection() {
+        isAreaSelectionActive = false;
+        hasAreaSelectionStart = false;
+
+        if (areaSelectionBoxVisual != null) {
+            areaSelectionBoxVisual.SetVisible(false);
+        }
+
+        Debug.Log("Area selection cancelled.");
+    }
+
+    private void CompleteAreaSelection(Vector3Int areaEndCoord) {
+        if (chunkManager == null) {
+            CancelAreaSelection();
+            return;
+        }
+
+        bool additiveSelection = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+
+        if (!additiveSelection) {
+            selectedChunks.Clear();
+        }
+
+        List<CpuTerrainChunk> areaChunks = chunkManager.GetChunksInCoordArea(areaSelectionStartCoord, areaEndCoord);
+
+        for (int i = 0; i < areaChunks.Count; i++) {
+            if (areaChunks[i] != null) {
+                selectedChunks.Add(areaChunks[i]);
+            }
+        }
+
+        Debug.Log($"Selected {areaChunks.Count} chunks in area from {areaSelectionStartCoord} to {areaEndCoord}.");
+
+        isAreaSelectionActive = false;
+        hasAreaSelectionStart = false;
+    }
+
+    private void UpdateAreaSelectionVisual() {
+        if (areaSelectionBoxVisual == null) {
+            return;
+        }
+
+        if (!isAreaSelectionActive || !hasAreaSelectionStart || hoveredChunk == null || chunkManager == null) {
+            areaSelectionBoxVisual.SetVisible(false);
+            return;
+        }
+
+        Bounds areaBounds = chunkManager.GetChunkCoordAreaWorldBounds(areaSelectionStartCoord, hoveredChunk.ChunkCoord);
+
+        areaSelectionBoxVisual.SetColor(areaSelectionPreviewColor);
+        areaSelectionBoxVisual.SetLineWidth(selectionLineWidth);
+        areaSelectionBoxVisual.SetBounds(areaBounds);
+        areaSelectionBoxVisual.SetVisible(true);
     }
 
 }

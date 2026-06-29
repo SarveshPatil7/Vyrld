@@ -33,6 +33,11 @@ public class CpuTerrainChunkManager : MonoBehaviour {
     new TerrainRegionDefinition(3, "Ocean", 3000, 1f, 4f, 0.045f)
     };
 
+    [SerializeField] private int regionBlendSearchRadiusX = 1;
+    [SerializeField] private int regionBlendSearchRadiusY = 1;
+    [SerializeField] private int regionBlendSearchRadiusZ = 1;
+    [SerializeField] private float regionBlendDistanceInChunks = 1.5f;
+
     private TerrainEditUndoSystem undoSystem;
 
     private readonly Dictionary<Vector3Int, CpuTerrainChunk> chunks = new();
@@ -74,9 +79,10 @@ public class CpuTerrainChunkManager : MonoBehaviour {
         CpuTerrainChunk chunk = Instantiate(chunkPrefab, transform);
 
         chunk.name = $"CPU_Terrain_Chunk_{chunkCoord.x}_{chunkCoord.y}_{chunkCoord.z}";
-        chunk.Initialize(chunkCoord, cellCount, cellSize, seed, loadSavedChunksOnStart, worldName, terrainRegion);
-
         chunks.Add(chunkCoord, chunk);
+
+        chunk.SetSeedDensityEvaluator(EvaluateBlendedRegionDensity);
+        chunk.Initialize(chunkCoord, cellCount, cellSize, seed, loadSavedChunksOnStart, worldName, terrainRegion);
 
         return chunk;
     }
@@ -239,9 +245,37 @@ public class CpuTerrainChunkManager : MonoBehaviour {
             return;
         }
 
-        int resetCount = 0;
+        HashSet<Vector3Int> chunkCoordsToReset = new HashSet<Vector3Int>();
+        int selectedCount = 0;
+
+        int safeSearchRadiusX = Mathf.Max(0, regionBlendSearchRadiusX);
+        int safeSearchRadiusY = Mathf.Max(0, regionBlendSearchRadiusY);
+        int safeSearchRadiusZ = Mathf.Max(0, regionBlendSearchRadiusZ);
 
         foreach (CpuTerrainChunk chunk in chunksToReset) {
+            if (chunk == null) {
+                continue;
+            }
+
+            selectedCount++;
+
+            for (int x = -safeSearchRadiusX; x <= safeSearchRadiusX; x++) {
+                for (int y = -safeSearchRadiusY; y <= safeSearchRadiusY; y++) {
+                    for (int z = -safeSearchRadiusZ; z <= safeSearchRadiusZ; z++) {
+                        Vector3Int resetCoord = chunk.ChunkCoord + new Vector3Int(x, y, z);
+                        chunkCoordsToReset.Add(resetCoord);
+                    }
+                }
+            }
+        }
+
+        int resetCount = 0;
+
+        foreach (Vector3Int chunkCoord in chunkCoordsToReset) {
+            if (!chunks.TryGetValue(chunkCoord, out CpuTerrainChunk chunk)) {
+                continue;
+            }
+
             if (chunk == null) {
                 continue;
             }
@@ -252,7 +286,7 @@ public class CpuTerrainChunkManager : MonoBehaviour {
 
         ClearUndoHistory();
 
-        Debug.Log($"Reset {resetCount} selected CPU terrain chunks to seed default.");
+        Debug.Log($"Reset {resetCount} CPU terrain chunks using blended regions from {selectedCount} selected chunks.");
     }
 
     public void ApplyBrushEdit(Vector3 worldCenter, float radius, float strength, CpuTerrainBrushType brushType, CpuTerrainFlattenMode flattenMode, float roughnessScale, float roughnessAmount) {
@@ -614,5 +648,137 @@ public class CpuTerrainChunkManager : MonoBehaviour {
         }
 
         Debug.Log($"Assigned terrain region {terrainRegion.GetDisplayName()} to {assignedCount} selected chunks.");
+    }
+
+    public float EvaluateBlendedRegionDensity(Vector3 worldPosition) {
+        EnsureTerrainRegions();
+
+        Vector3Int centerChunkCoord = WorldToChunkCoord(worldPosition);
+
+        int safeSearchRadiusX = Mathf.Max(0, regionBlendSearchRadiusX);
+        int safeSearchRadiusY = Mathf.Max(0, regionBlendSearchRadiusY);
+        int safeSearchRadiusZ = Mathf.Max(0, regionBlendSearchRadiusZ);
+
+        float chunkWorldSize = cellCount * cellSize;
+        float blendDistance = Mathf.Max(0.001f, chunkWorldSize * regionBlendDistanceInChunks);
+
+        float weightedDensitySum = 0f;
+        float totalWeight = 0f;
+
+        for (int x = -safeSearchRadiusX; x <= safeSearchRadiusX; x++) {
+            for (int y = -safeSearchRadiusY; y <= safeSearchRadiusY; y++) {
+                for (int z = -safeSearchRadiusZ; z <= safeSearchRadiusZ; z++) {
+                    Vector3Int sampleChunkCoord = centerChunkCoord + new Vector3Int(x, y, z);
+
+                    if (!chunks.TryGetValue(sampleChunkCoord, out CpuTerrainChunk chunk)) {
+                        continue;
+                    }
+
+                    if (chunk == null) {
+                        continue;
+                    }
+
+                    Vector3 chunkCenter = GetChunkWorldCenter(sampleChunkCoord);
+                    float distance = Vector3.Distance(worldPosition, chunkCenter);
+
+                    float weight = 1f - Mathf.Clamp01(distance / blendDistance);
+                    weight = weight * weight * (3f - 2f * weight);
+
+                    if (weight <= 0.0001f) {
+                        continue;
+                    }
+
+                    TerrainRegionDefinition terrainRegion = GetRegionById(chunk.RegionId);
+                    float density = DensityInitializer.EvaluateDensity(worldPosition, seed, terrainRegion);
+
+                    weightedDensitySum += density * weight;
+                    totalWeight += weight;
+                }
+            }
+        }
+
+        if (totalWeight <= 0.0001f) {
+            TerrainRegionDefinition fallbackRegion = GetRegionById(defaultRegionId);
+            return DensityInitializer.EvaluateDensity(worldPosition, seed, fallbackRegion);
+        }
+
+        return weightedDensitySum / totalWeight;
+    }
+
+    private Vector3 GetChunkWorldCenter(Vector3Int chunkCoord) {
+        float chunkWorldSize = cellCount * cellSize;
+
+        return new Vector3(
+            chunkCoord.x * chunkWorldSize + chunkWorldSize * 0.5f,
+            chunkCoord.y * chunkWorldSize + chunkWorldSize * 0.5f,
+            chunkCoord.z * chunkWorldSize + chunkWorldSize * 0.5f
+        );
+    }
+
+    public List<CpuTerrainChunk> GetChunksInCoordArea(Vector3Int firstCoord, Vector3Int secondCoord) {
+        List<CpuTerrainChunk> areaChunks = new List<CpuTerrainChunk>();
+
+        Vector3Int minCoord = GetMinChunkCoord(firstCoord, secondCoord);
+        Vector3Int maxCoord = GetMaxChunkCoord(firstCoord, secondCoord);
+
+        for (int x = minCoord.x; x <= maxCoord.x; x++) {
+            for (int y = minCoord.y; y <= maxCoord.y; y++) {
+                for (int z = minCoord.z; z <= maxCoord.z; z++) {
+                    Vector3Int chunkCoord = new Vector3Int(x, y, z);
+
+                    if (!chunks.TryGetValue(chunkCoord, out CpuTerrainChunk chunk)) {
+                        continue;
+                    }
+
+                    if (chunk == null) {
+                        continue;
+                    }
+
+                    areaChunks.Add(chunk);
+                }
+            }
+        }
+
+        return areaChunks;
+    }
+
+    public Bounds GetChunkCoordAreaWorldBounds(Vector3Int firstCoord, Vector3Int secondCoord) {
+        Vector3Int minCoord = GetMinChunkCoord(firstCoord, secondCoord);
+        Vector3Int maxCoord = GetMaxChunkCoord(firstCoord, secondCoord);
+
+        float chunkWorldSize = cellCount * cellSize;
+
+        Vector3 minWorld = new Vector3(
+        minCoord.x * chunkWorldSize,
+        minCoord.y * chunkWorldSize,
+        minCoord.z * chunkWorldSize
+    );
+
+        Vector3 maxWorld = new Vector3(
+        (maxCoord.x + 1) * chunkWorldSize,
+        (maxCoord.y + 1) * chunkWorldSize,
+        (maxCoord.z + 1) * chunkWorldSize
+    );
+
+        Vector3 center = (minWorld + maxWorld) * 0.5f;
+        Vector3 size = maxWorld - minWorld;
+
+        return new Bounds(center, size);
+    }
+
+    private Vector3Int GetMinChunkCoord(Vector3Int firstCoord, Vector3Int secondCoord) {
+        return new Vector3Int(
+            Mathf.Min(firstCoord.x, secondCoord.x),
+            Mathf.Min(firstCoord.y, secondCoord.y),
+            Mathf.Min(firstCoord.z, secondCoord.z)
+        );
+    }
+
+    private Vector3Int GetMaxChunkCoord(Vector3Int firstCoord, Vector3Int secondCoord) {
+        return new Vector3Int(
+            Mathf.Max(firstCoord.x, secondCoord.x),
+            Mathf.Max(firstCoord.y, secondCoord.y),
+            Mathf.Max(firstCoord.z, secondCoord.z)
+        );
     }
 }

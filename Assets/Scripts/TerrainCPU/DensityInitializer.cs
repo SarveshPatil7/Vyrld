@@ -12,25 +12,26 @@ public static class DensityInitializer {
             for (int y = 0; y < data.sampleCount; y++) {
                 for (int z = 0; z < data.sampleCount; z++) {
                     Vector3 worldPos = data.SampleToWorldPosition(x, y, z);
-                    float density = GetInitialDensity(worldPos, seed, activeRegion);
+                    float density = EvaluateDensity(worldPos, seed, activeRegion);
                     data.Set(x, y, z, density);
                 }
             }
         }
     }
 
-    private static float GetInitialDensity(Vector3 worldPos, int seed, TerrainRegionDefinition terrainRegion) {
-        float safeNoiseScale = Mathf.Max(0.0001f, terrainRegion.NoiseScale);
+    public static float EvaluateDensity(Vector3 worldPos, int seed, TerrainRegionDefinition terrainRegion) {
+        TerrainRegionDefinition activeRegion = terrainRegion ?? TerrainRegionDefinition.CreateDefault();
+        float safeNoiseScale = Mathf.Max(0.0001f, activeRegion.NoiseScale);
 
-        float seedOffsetX = (seed + terrainRegion.SeedOffset) * 13.37f;
-        float seedOffsetZ = (seed + terrainRegion.SeedOffset) * 91.73f;
+        float seedOffsetX = (seed + activeRegion.SeedOffset) * 13.37f;
+        float seedOffsetZ = (seed + activeRegion.SeedOffset) * 91.73f;
 
         float noise = Mathf.PerlinNoise(
             worldPos.x * safeNoiseScale + seedOffsetX,
             worldPos.z * safeNoiseScale + seedOffsetZ
         );
 
-        float terrainHeight = terrainRegion.BaseHeight + noise * terrainRegion.HeightVariation;
+        float terrainHeight = activeRegion.BaseHeight + noise * activeRegion.HeightVariation;
 
         return terrainHeight - worldPos.y;
     }

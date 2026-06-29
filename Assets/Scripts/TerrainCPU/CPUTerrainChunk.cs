@@ -39,6 +39,8 @@ public class CpuTerrainChunk : MonoBehaviour {
     public int RegionId => regionId;
     public string RegionName => terrainRegion != null ? terrainRegion.RegionName : "None";
 
+    private Func<Vector3, float> seedDensityEvaluator;
+
     private void Awake() {
         meshFilter = GetComponent<MeshFilter>();
         meshCollider = GetComponent<MeshCollider>();
@@ -56,7 +58,7 @@ public class CpuTerrainChunk : MonoBehaviour {
         UpdateChunkTransformPosition();
 
         densityData = new DensityChunkData(chunkCoord, cellCount, cellSize);
-        DensityInitializer.FillFromSeed(densityData, seed, terrainRegion);
+        FillDensityFromSeed();
 
         if (logDensityRange) {
             LogDensityRange();
@@ -168,7 +170,7 @@ public class CpuTerrainChunk : MonoBehaviour {
         EnsureTerrainRegion();
 
         densityData = new DensityChunkData(chunkCoord, cellCount, cellSize);
-        DensityInitializer.FillFromSeed(densityData, seed, terrainRegion);
+        FillDensityFromSeed();
 
         RebuildMesh();
     }
@@ -262,6 +264,10 @@ public class CpuTerrainChunk : MonoBehaviour {
         }
     }
 
+    public void SetSeedDensityEvaluator(Func<Vector3, float> newSeedDensityEvaluator) {
+        seedDensityEvaluator = newSeedDensityEvaluator;
+    }
+
     private void EnsureTerrainRegion() {
         if (terrainRegion != null) {
             return;
@@ -269,5 +275,31 @@ public class CpuTerrainChunk : MonoBehaviour {
 
         terrainRegion = TerrainRegionDefinition.CreateDefault();
         regionId = terrainRegion.RegionId;
+    }
+
+    private void FillDensityFromSeed() {
+        if (densityData == null) {
+            Debug.LogError("Cannot fill density from seed. Density data is null.");
+            return;
+        }
+
+        for (int x = 0; x < densityData.sampleCount; x++) {
+            for (int y = 0; y < densityData.sampleCount; y++) {
+                for (int z = 0; z < densityData.sampleCount; z++) {
+                    Vector3 sampleWorldPosition = densityData.SampleToWorldPosition(x, y, z);
+                    float density = EvaluateSeedDensity(sampleWorldPosition);
+                    densityData.Set(x, y, z, density);
+                }
+            }
+        }
+    }
+
+    private float EvaluateSeedDensity(Vector3 worldPosition) {
+        if (seedDensityEvaluator != null) {
+            return seedDensityEvaluator(worldPosition);
+        }
+
+        EnsureTerrainRegion();
+        return DensityInitializer.EvaluateDensity(worldPosition, seed, terrainRegion);
     }
 }
