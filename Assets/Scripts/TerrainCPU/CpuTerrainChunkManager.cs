@@ -23,6 +23,16 @@ public class CpuTerrainChunkManager : MonoBehaviour {
     [Header("Undo")]
     [SerializeField] private int maxUndoSteps = 30;
 
+    [Header("Terrain Regions")]
+    [SerializeField] private int defaultRegionId = 0;
+    [SerializeField]
+    private List<TerrainRegionDefinition> terrainRegions = new List<TerrainRegionDefinition> {
+    new TerrainRegionDefinition(0, "Default", 0, 8f, 8f, 0.06f),
+    new TerrainRegionDefinition(1, "Flatlands", 1000, 7f, 2f, 0.035f),
+    new TerrainRegionDefinition(2, "Mountains", 2000, 10f, 18f, 0.08f),
+    new TerrainRegionDefinition(3, "Ocean", 3000, 1f, 4f, 0.045f)
+    };
+
     private TerrainEditUndoSystem undoSystem;
 
     private readonly Dictionary<Vector3Int, CpuTerrainChunk> chunks = new();
@@ -46,6 +56,10 @@ public class CpuTerrainChunkManager : MonoBehaviour {
     }
 
     private CpuTerrainChunk CreateChunk(Vector3Int chunkCoord) {
+        return CreateChunk(chunkCoord, defaultRegionId);
+    }
+
+    private CpuTerrainChunk CreateChunk(Vector3Int chunkCoord, int regionId) {
         if (chunks.TryGetValue(chunkCoord, out CpuTerrainChunk existingChunk)) {
             return existingChunk;
         }
@@ -55,10 +69,12 @@ public class CpuTerrainChunkManager : MonoBehaviour {
             return null;
         }
 
+        TerrainRegionDefinition terrainRegion = GetRegionById(regionId);
+
         CpuTerrainChunk chunk = Instantiate(chunkPrefab, transform);
 
         chunk.name = $"CPU_Terrain_Chunk_{chunkCoord.x}_{chunkCoord.y}_{chunkCoord.z}";
-        chunk.Initialize(chunkCoord, cellCount, cellSize, seed, loadSavedChunksOnStart, worldName);
+        chunk.Initialize(chunkCoord, cellCount, cellSize, seed, loadSavedChunksOnStart, worldName, terrainRegion);
 
         chunks.Add(chunkCoord, chunk);
 
@@ -90,7 +106,7 @@ public class CpuTerrainChunkManager : MonoBehaviour {
         );
     }
 
-    public List<CpuTerrainChunk> GenerateChunksAroundChunkCoord(Vector3Int centerChunkCoord, int chunkRadiusX, int chunkRadiusY, int chunkRadiusZ) {
+    public List<CpuTerrainChunk> GenerateChunksAroundChunkCoord(Vector3Int centerChunkCoord, int chunkRadiusX, int chunkRadiusY, int chunkRadiusZ, int sourceRegionId) {
         List<CpuTerrainChunk> createdChunks = new List<CpuTerrainChunk>();
 
         for (int x = -chunkRadiusX; x <= chunkRadiusX; x++) {
@@ -102,7 +118,7 @@ public class CpuTerrainChunkManager : MonoBehaviour {
                         continue;
                     }
 
-                    CpuTerrainChunk createdChunk = CreateChunk(chunkCoord);
+                    CpuTerrainChunk createdChunk = CreateChunk(chunkCoord, sourceRegionId);
 
                     if (createdChunk != null) {
                         createdChunks.Add(createdChunk);
@@ -112,7 +128,9 @@ public class CpuTerrainChunkManager : MonoBehaviour {
         }
 
         if (createdChunks.Count > 0) {
-            Debug.Log($"Generated {createdChunks.Count} new chunks around chunk {centerChunkCoord}.");
+            TerrainRegionDefinition region = GetRegionById(sourceRegionId);
+            string regionName = region != null ? region.GetDisplayName() : "Unknown";
+            Debug.Log($"Generated {createdChunks.Count} new chunks around chunk {centerChunkCoord} using region {regionName}.");
         }
 
         return createdChunks;
@@ -126,12 +144,17 @@ public class CpuTerrainChunkManager : MonoBehaviour {
             return createdChunks;
         }
 
-        foreach (CpuTerrainChunk sourceChunk in sourceChunks) {
-            if (sourceChunk == null) {
-                continue;
-            }
+        List<CpuTerrainChunk> sourceChunkList = new List<CpuTerrainChunk>();
 
-            List<CpuTerrainChunk> newlyCreatedChunks = GenerateChunksAroundChunkCoord(sourceChunk.ChunkCoord, chunkRadiusX, chunkRadiusY, chunkRadiusZ);
+        foreach (CpuTerrainChunk sourceChunk in sourceChunks) {
+            if (sourceChunk != null) {
+                sourceChunkList.Add(sourceChunk);
+            }
+        }
+
+        for (int i = 0; i < sourceChunkList.Count; i++) {
+            CpuTerrainChunk sourceChunk = sourceChunkList[i];
+            List<CpuTerrainChunk> newlyCreatedChunks = GenerateChunksAroundChunkCoord(sourceChunk.ChunkCoord, chunkRadiusX, chunkRadiusY, chunkRadiusZ, sourceChunk.RegionId);
             createdChunks.AddRange(newlyCreatedChunks);
         }
 
@@ -447,6 +470,7 @@ public class CpuTerrainChunkManager : MonoBehaviour {
     }
 
     private void Awake() {
+        EnsureTerrainRegions();
         undoSystem = new TerrainEditUndoSystem(maxUndoSteps);
     }
 
@@ -522,5 +546,73 @@ public class CpuTerrainChunkManager : MonoBehaviour {
         if (undoSystem == null) {
             undoSystem = new TerrainEditUndoSystem(maxUndoSteps);
         }
+    }
+
+    private void EnsureTerrainRegions() {
+        if (terrainRegions == null) {
+            terrainRegions = new List<TerrainRegionDefinition>();
+        }
+
+        if (terrainRegions.Count == 0) {
+            terrainRegions.Add(TerrainRegionDefinition.CreateDefault());
+        }
+    }
+
+    public int RegionCount {
+        get {
+            EnsureTerrainRegions();
+            return terrainRegions.Count;
+        }
+    }
+
+    public TerrainRegionDefinition GetRegionByIndex(int regionIndex) {
+        EnsureTerrainRegions();
+
+        if (terrainRegions.Count == 0) {
+            return TerrainRegionDefinition.CreateDefault();
+        }
+
+        int safeIndex = Mathf.Clamp(regionIndex, 0, terrainRegions.Count - 1);
+        return terrainRegions[safeIndex];
+    }
+
+    public TerrainRegionDefinition GetRegionById(int targetRegionId) {
+        EnsureTerrainRegions();
+
+        for (int i = 0; i < terrainRegions.Count; i++) {
+            TerrainRegionDefinition region = terrainRegions[i];
+
+            if (region != null && region.RegionId == targetRegionId) {
+                return region;
+            }
+        }
+
+        return terrainRegions[0] ?? TerrainRegionDefinition.CreateDefault();
+    }
+
+    public string GetRegionDisplayName(int regionIndex) {
+        TerrainRegionDefinition region = GetRegionByIndex(regionIndex);
+        return region != null ? region.GetDisplayName() : "None";
+    }
+
+    public void AssignRegionToChunks(IEnumerable<CpuTerrainChunk> chunksToAssign, int regionId) {
+        if (chunksToAssign == null) {
+            Debug.LogWarning("Cannot assign terrain region. Chunk collection is null.");
+            return;
+        }
+
+        TerrainRegionDefinition terrainRegion = GetRegionById(regionId);
+        int assignedCount = 0;
+
+        foreach (CpuTerrainChunk chunk in chunksToAssign) {
+            if (chunk == null) {
+                continue;
+            }
+
+            chunk.SetTerrainRegion(terrainRegion, regenerate: false);
+            assignedCount++;
+        }
+
+        Debug.Log($"Assigned terrain region {terrainRegion.GetDisplayName()} to {assignedCount} selected chunks.");
     }
 }

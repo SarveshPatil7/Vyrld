@@ -27,11 +27,17 @@ public class CpuTerrainChunk : MonoBehaviour {
     [SerializeField] private bool showChunkLabel = true;
     [SerializeField] private Color chunkBoundsColor = new Color(0.5f, 0.5f, 0.5f, 0.25f);
 
+    [SerializeField] private int regionId = 0;
+
+    private TerrainRegionDefinition terrainRegion;
+
     private MeshFilter meshFilter;
     private MeshCollider meshCollider;
     private DensityChunkData densityData;
     public Vector3Int ChunkCoord => chunkCoord;
     public DensityChunkData DensityData => densityData;
+    public int RegionId => regionId;
+    public string RegionName => terrainRegion != null ? terrainRegion.RegionName : "None";
 
     private void Awake() {
         meshFilter = GetComponent<MeshFilter>();
@@ -45,17 +51,18 @@ public class CpuTerrainChunk : MonoBehaviour {
     }
 
     public void GenerateNewChunk() {
+        EnsureTerrainRegion();
+
         UpdateChunkTransformPosition();
 
         densityData = new DensityChunkData(chunkCoord, cellCount, cellSize);
-        DensityInitializer.FillFromSeed(densityData, seed);
+        DensityInitializer.FillFromSeed(densityData, seed, terrainRegion);
 
         if (logDensityRange) {
             LogDensityRange();
         }
 
         RebuildMesh();
-
     }
 
     public void RebuildMesh() {
@@ -158,19 +165,23 @@ public class CpuTerrainChunk : MonoBehaviour {
     }
 
     public void ResetChunkToSeed() {
+        EnsureTerrainRegion();
+
         densityData = new DensityChunkData(chunkCoord, cellCount, cellSize);
-        DensityInitializer.FillFromSeed(densityData, seed);
+        DensityInitializer.FillFromSeed(densityData, seed, terrainRegion);
 
         RebuildMesh();
-
     }
 
-    public void Initialize(Vector3Int chunkCoord, int cellCount, float cellSize, int seed, bool loadSavedChunkOnStart, string worldName) {
+    public void Initialize(Vector3Int chunkCoord, int cellCount, float cellSize, int seed, bool loadSavedChunkOnStart, string worldName, 
+                            TerrainRegionDefinition terrainRegion) {
         this.worldName = worldName;
         this.chunkCoord = chunkCoord;
         this.cellCount = cellCount;
         this.cellSize = cellSize;
         this.seed = seed;
+
+        SetTerrainRegion(terrainRegion, regenerate: false);
 
         UpdateChunkTransformPosition();
 
@@ -240,5 +251,23 @@ public class CpuTerrainChunk : MonoBehaviour {
             Vector3 size = Vector3.one * chunkWorldSize;
             return new Bounds(center, size);
         }
+    }
+
+    public void SetTerrainRegion(TerrainRegionDefinition newTerrainRegion, bool regenerate) {
+        terrainRegion = newTerrainRegion ?? TerrainRegionDefinition.CreateDefault();
+        regionId = terrainRegion.RegionId;
+
+        if (regenerate) {
+            ResetChunkToSeed();
+        }
+    }
+
+    private void EnsureTerrainRegion() {
+        if (terrainRegion != null) {
+            return;
+        }
+
+        terrainRegion = TerrainRegionDefinition.CreateDefault();
+        regionId = terrainRegion.RegionId;
     }
 }

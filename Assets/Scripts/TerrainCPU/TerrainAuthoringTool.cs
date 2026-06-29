@@ -36,6 +36,12 @@ public class TerrainAuthoringTool : TerrainModeTool {
     [SerializeField] private int generateRadiusY = 0;
     [SerializeField] private int generateRadiusZ = 3;
 
+    [Header("Terrain Regions")]
+    [SerializeField] private KeyCode previousRegionKey = KeyCode.LeftBracket;
+    [SerializeField] private KeyCode nextRegionKey = KeyCode.RightBracket;
+    [SerializeField] private KeyCode assignRegionKey = KeyCode.B;
+    [SerializeField] private int activeRegionIndex = 0;
+
     private TerrainChunkBoxVisual hoverBoxVisual;
     private readonly Dictionary<CpuTerrainChunk, TerrainChunkBoxVisual> selectedBoxVisuals = new();
 
@@ -73,6 +79,7 @@ public class TerrainAuthoringTool : TerrainModeTool {
         HandleChunkExpansion();
         UpdateHoveredChunk();
         HandleChunkSelection();
+        HandleRegionControls();
         HandleSelectedChunkOperations();
         UpdateSelectionVisuals();
     }
@@ -258,7 +265,7 @@ public class TerrainAuthoringTool : TerrainModeTool {
             return;
         }
 
-        GUILayout.BeginArea(new Rect(15f, 15f, 380f, 210f), GUI.skin.box);
+        GUILayout.BeginArea(new Rect(15f, 15f, 600f, 270f), GUI.skin.box);
 
         GUILayout.Label("Authoring Mode");
         GUILayout.Label("WASD: Move freecam");
@@ -268,8 +275,11 @@ public class TerrainAuthoringTool : TerrainModeTool {
         GUILayout.Label("Shift + Left Click: Add/remove chunk");
         GUILayout.Label("C: Clear selection");
         GUILayout.Label("V: Save selected chunks");
-        GUILayout.Label("R: Reset selected chunks to seed");
+        GUILayout.Label("R: Reset selected chunks using region");
         GUILayout.Label("G: Generate around selected chunks");
+        GUILayout.Label($"Active Region: {GetActiveRegionDisplayName()}");
+        GUILayout.Label("[ / ]: Cycle active region");
+        GUILayout.Label("B: Assign selected chunks to active region");
 
         string hoverText = hoveredChunk != null ? hoveredChunk.ChunkCoord.ToString() : "None";
         GUILayout.Label($"Hovered Chunk: {hoverText}");
@@ -401,6 +411,69 @@ public class TerrainAuthoringTool : TerrainModeTool {
         }
 
         return Vector3Int.zero;
+    }
+
+    private void HandleRegionControls() {
+        if (chunkManager == null) {
+            return;
+        }
+
+        if (Input.GetKeyDown(previousRegionKey)) {
+            CycleActiveRegion(-1);
+        }
+
+        if (Input.GetKeyDown(nextRegionKey)) {
+            CycleActiveRegion(1);
+        }
+
+        if (Input.GetKeyDown(assignRegionKey)) {
+            AssignActiveRegionToSelectedChunks();
+        }
+    }
+
+    private void CycleActiveRegion(int direction) {
+        int regionCount = chunkManager.RegionCount;
+
+        if (regionCount <= 0) {
+            Debug.LogWarning("No terrain regions are configured.");
+            return;
+        }
+
+        activeRegionIndex += direction;
+
+        if (activeRegionIndex < 0) {
+            activeRegionIndex = regionCount - 1;
+        }
+
+        if (activeRegionIndex >= regionCount) {
+            activeRegionIndex = 0;
+        }
+
+        Debug.Log($"Active terrain region: {chunkManager.GetRegionDisplayName(activeRegionIndex)}");
+    }
+
+    private void AssignActiveRegionToSelectedChunks() {
+        if (selectedChunks.Count == 0) {
+            Debug.Log("No selected chunks to assign terrain region.");
+            return;
+        }
+
+        TerrainRegionDefinition activeRegion = chunkManager.GetRegionByIndex(activeRegionIndex);
+
+        if (activeRegion == null) {
+            Debug.LogWarning("Cannot assign terrain region. Active region is null.");
+            return;
+        }
+
+        chunkManager.AssignRegionToChunks(selectedChunks, activeRegion.RegionId);
+    }
+
+    private string GetActiveRegionDisplayName() {
+        if (chunkManager == null) {
+            return "None";
+        }
+
+        return chunkManager.GetRegionDisplayName(activeRegionIndex);
     }
 
 }
