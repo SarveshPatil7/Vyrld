@@ -232,4 +232,13 @@ public class CpuTerrainChunk : MonoBehaviour {
         }
     #endif
     }
+
+    public Bounds WorldBounds {
+        get {
+            float chunkWorldSize = cellCount * cellSize;
+            Vector3 center = transform.position + Vector3.one * chunkWorldSize * 0.5f;
+            Vector3 size = Vector3.one * chunkWorldSize;
+            return new Bounds(center, size);
+        }
+    }
 }

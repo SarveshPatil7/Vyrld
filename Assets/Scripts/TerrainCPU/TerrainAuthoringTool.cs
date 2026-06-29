@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 public class TerrainAuthoringTool : TerrainModeTool {
@@ -15,6 +16,23 @@ public class TerrainAuthoringTool : TerrainModeTool {
     [SerializeField] private float lookSensitivity = 2f;
     [SerializeField] private bool holdRightMouseToLook = true;
 
+    [Header("Chunk Selection")]
+    [SerializeField] private LayerMask terrainRaycastMask = ~0;
+    [SerializeField] private float rayDistance = 500f;
+    [SerializeField] private Color hoverColor = new Color(1f, 1f, 0f, 0.8f);
+    [SerializeField] private Color selectedColor = new Color(0f, 1f, 1f, 0.8f);
+    [SerializeField] private bool showAuthoringOverlay = true;
+
+    [Header("Chunk Selection Visuals")]
+    [SerializeField] private bool showSelectionInGameView = true;
+    [SerializeField] private float selectionLineWidth = 0.05f;
+
+    private TerrainChunkBoxVisual hoverBoxVisual;
+    private readonly Dictionary<CpuTerrainChunk, TerrainChunkBoxVisual> selectedBoxVisuals = new();
+
+    private CpuTerrainChunk hoveredChunk;
+    private readonly HashSet<CpuTerrainChunk> selectedChunks = new();
+
     private float yaw;
     private float pitch;
 
@@ -28,6 +46,8 @@ public class TerrainAuthoringTool : TerrainModeTool {
             yaw = currentEuler.y;
             pitch = currentEuler.x;
         }
+
+        hoverBoxVisual = new TerrainChunkBoxVisual("Hovered Terrain Chunk", hoverColor, selectionLineWidth);
     }
 
     private void Update() {
@@ -37,6 +57,9 @@ public class TerrainAuthoringTool : TerrainModeTool {
 
         HandleLook();
         HandleMovement();
+        UpdateHoveredChunk();
+        HandleChunkSelection();
+        UpdateSelectionVisuals();
     }
 
     public override void EnterMode() {
@@ -58,6 +81,8 @@ public class TerrainAuthoringTool : TerrainModeTool {
     public override void ExitMode() {
         UnlockCursor();
         Debug.Log("Exited Terrain Authoring mode.");
+        HideSelectionVisuals();
+        hoveredChunk = null;
         base.ExitMode();
     }
 
@@ -129,5 +154,165 @@ public class TerrainAuthoringTool : TerrainModeTool {
     private void UnlockCursor() {
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
+    }
+
+    private void UpdateHoveredChunk() {
+        hoveredChunk = null;
+
+        Ray ray = targetCamera.ScreenPointToRay(Input.mousePosition);
+
+        if (!Physics.Raycast(ray, out RaycastHit hit, rayDistance, terrainRaycastMask)) {
+            return;
+        }
+
+        hoveredChunk = hit.collider.GetComponentInParent<CpuTerrainChunk>();
+    }
+
+    private void HandleChunkSelection() {
+        if (Input.GetKeyDown(KeyCode.C)) {
+            selectedChunks.Clear();
+            Debug.Log("Cleared selected terrain chunks.");
+            return;
+        }
+
+        if (!Input.GetMouseButtonDown(0)) {
+            return;
+        }
+
+        if (hoveredChunk == null) {
+            if (!Input.GetKey(KeyCode.LeftShift) && !Input.GetKey(KeyCode.RightShift)) {
+                selectedChunks.Clear();
+            }
+
+            return;
+        }
+
+        bool additiveSelection = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+
+        if (!additiveSelection) {
+            selectedChunks.Clear();
+            selectedChunks.Add(hoveredChunk);
+            Debug.Log($"Selected chunk {hoveredChunk.ChunkCoord}");
+            return;
+        }
+
+        if (selectedChunks.Contains(hoveredChunk)) {
+            selectedChunks.Remove(hoveredChunk);
+            Debug.Log($"Deselected chunk {hoveredChunk.ChunkCoord}");
+        }
+        else {
+            selectedChunks.Add(hoveredChunk);
+            Debug.Log($"Added chunk {hoveredChunk.ChunkCoord} to selection.");
+        }
+    }
+
+    private void OnGUI() {
+        if (!showAuthoringOverlay || !enabled) {
+            return;
+        }
+
+        GUILayout.BeginArea(new Rect(15f, 15f, 360f, 170f), GUI.skin.box);
+
+        GUILayout.Label("Authoring Mode");
+        GUILayout.Label("WASD: Move freecam");
+        GUILayout.Label("Q / E: Down / Up");
+        GUILayout.Label("Right Mouse: Look");
+        GUILayout.Label("Left Click: Select chunk");
+        GUILayout.Label("Shift + Left Click: Add/remove chunk");
+        GUILayout.Label("C: Clear selection");
+
+        string hoverText = hoveredChunk != null ? hoveredChunk.ChunkCoord.ToString() : "None";
+        GUILayout.Label($"Hovered Chunk: {hoverText}");
+        GUILayout.Label($"Selected Chunks: {selectedChunks.Count}");
+
+        GUILayout.EndArea();
+    }
+
+    private void UpdateSelectionVisuals() {
+        if (!showSelectionInGameView) {
+            HideSelectionVisuals();
+            return;
+        }
+
+        UpdateHoverVisual();
+        UpdateSelectedChunkVisuals();
+    }
+
+    private void UpdateHoverVisual() {
+        if (hoverBoxVisual == null) {
+            return;
+        }
+
+        if (hoveredChunk == null) {
+            hoverBoxVisual.SetVisible(false);
+            return;
+        }
+
+        hoverBoxVisual.SetColor(hoverColor);
+        hoverBoxVisual.SetLineWidth(selectionLineWidth);
+        hoverBoxVisual.SetBounds(hoveredChunk.WorldBounds);
+        hoverBoxVisual.SetVisible(true);
+    }
+
+    private void UpdateSelectedChunkVisuals() {
+        List<CpuTerrainChunk> chunksToRemove = new List<CpuTerrainChunk>();
+
+        foreach (KeyValuePair<CpuTerrainChunk, TerrainChunkBoxVisual> entry in selectedBoxVisuals) {
+            if (entry.Key == null || !selectedChunks.Contains(entry.Key)) {
+                chunksToRemove.Add(entry.Key);
+            }
+        }
+
+        for (int i = 0; i < chunksToRemove.Count; i++) {
+            CpuTerrainChunk chunk = chunksToRemove[i];
+
+            if (selectedBoxVisuals.TryGetValue(chunk, out TerrainChunkBoxVisual visual)) {
+                visual.Dispose();
+                selectedBoxVisuals.Remove(chunk);
+            }
+        }
+
+        foreach (CpuTerrainChunk chunk in selectedChunks) {
+            if (chunk == null) {
+                continue;
+            }
+
+            if (!selectedBoxVisuals.TryGetValue(chunk, out TerrainChunkBoxVisual visual)) {
+                visual = new TerrainChunkBoxVisual($"Selected Terrain Chunk {chunk.ChunkCoord}", selectedColor, selectionLineWidth);
+                selectedBoxVisuals.Add(chunk, visual);
+            }
+
+            visual.SetColor(selectedColor);
+            visual.SetLineWidth(selectionLineWidth);
+            visual.SetBounds(chunk.WorldBounds);
+            visual.SetVisible(true);
+        }
+    }
+
+    private void HideSelectionVisuals() {
+        if (hoverBoxVisual != null) {
+            hoverBoxVisual.SetVisible(false);
+        }
+
+        foreach (TerrainChunkBoxVisual visual in selectedBoxVisuals.Values) {
+            if (visual != null) {
+                visual.SetVisible(false);
+            }
+        }
+    }
+
+    private void OnDestroy() {
+        if (hoverBoxVisual != null) {
+            hoverBoxVisual.Dispose();
+            hoverBoxVisual = null;
+        }
+
+        foreach (TerrainChunkBoxVisual visual in selectedBoxVisuals.Values) {
+            if (visual != null) {
+                visual.Dispose();
+            }
+        }
+
+        selectedBoxVisuals.Clear();
     }
 }
