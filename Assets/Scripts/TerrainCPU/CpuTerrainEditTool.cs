@@ -32,11 +32,7 @@ public class CpuTerrainEditTool : MonoBehaviour {
     private bool hasBrushHit;
     private Vector3 brushHitPoint;
 
-    private GameObject brushPreviewObject;
-    private MeshFilter brushPreviewFilter;
-    private MeshRenderer brushPreviewRenderer;
-    private Mesh spherePreviewMesh;
-    private Mesh diskPreviewMesh;
+    private CpuTerrainBrushPreview brushPreview;
 
     [Header("Brush")]
     [SerializeField] private CpuTerrainBrushType brushType = CpuTerrainBrushType.SmoothSphere;
@@ -58,7 +54,8 @@ public class CpuTerrainEditTool : MonoBehaviour {
             chunkManager = FindAnyObjectByType<CpuTerrainChunkManager>();
         }
 
-        CreateBrushPreview();
+        brushPreview = new CpuTerrainBrushPreview();
+        brushPreview.Initialize(brushPreviewColor);
     }
     private void Update() {
         HandleKeyboardControls();
@@ -281,161 +278,19 @@ public class CpuTerrainEditTool : MonoBehaviour {
         }
     }
 
-    private void CreateBrushPreview() {
-        brushPreviewObject = new GameObject("CPU Terrain Brush Preview");
-
-        brushPreviewFilter = brushPreviewObject.AddComponent<MeshFilter>();
-        brushPreviewRenderer = brushPreviewObject.AddComponent<MeshRenderer>();
-
-        spherePreviewMesh = CreateSpherePreviewMesh();
-        diskPreviewMesh = CreateDiskPreviewMesh(64);
-
-        brushPreviewFilter.sharedMesh = spherePreviewMesh;
-
-        Shader previewShader = Shader.Find("Universal Render Pipeline/Unlit");
-
-        if (previewShader == null) {
-            previewShader = Shader.Find("Unlit/Transparent");
-        }
-
-        if (previewShader == null) {
-            previewShader = Shader.Find("Sprites/Default");
-        }
-
-        Material previewMaterial = new Material(previewShader);
-        SetBrushPreviewMaterialColor(previewMaterial, brushPreviewColor);
-
-        previewMaterial.SetInt("_SrcBlend", (int) UnityEngine.Rendering.BlendMode.SrcAlpha);
-        previewMaterial.SetInt("_DstBlend", (int) UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-        previewMaterial.SetInt("_ZWrite", 0);
-        previewMaterial.renderQueue = 3000;
-
-        if (previewMaterial.HasProperty("_Surface")) {
-            previewMaterial.SetFloat("_Surface", 1f);
-        }
-
-        if (previewMaterial.HasProperty("_Cull")) {
-            previewMaterial.SetInt("_Cull", (int) UnityEngine.Rendering.CullMode.Off);
-        }
-
-        brushPreviewRenderer.material = previewMaterial;
-        brushPreviewObject.SetActive(false);
-
-    }
-
-    private Mesh CreateSpherePreviewMesh() {
-        GameObject temporarySphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        Mesh sourceMesh = temporarySphere.GetComponent<MeshFilter>().sharedMesh;
-        Mesh previewMesh = Instantiate(sourceMesh);
-        previewMesh.name = "CPU Terrain Brush Sphere Preview Mesh";
-        Destroy(temporarySphere);
-        return previewMesh;
-    }
-
-    private Mesh CreateDiskPreviewMesh(int segmentCount) {
-        segmentCount = Mathf.Max(8, segmentCount);
-
-        Vector3[] vertices = new Vector3[segmentCount + 1];
-        Vector3[] normals = new Vector3[segmentCount + 1];
-        Vector2[] uvs = new Vector2[segmentCount + 1];
-        int[] triangles = new int[segmentCount * 6];
-
-        vertices[0] = Vector3.zero;
-        normals[0] = Vector3.up;
-        uvs[0] = new Vector2(0.5f, 0.5f);
-
-        for (int i = 0; i < segmentCount; i++) {
-            float angle = (float) i / segmentCount * Mathf.PI * 2f;
-            float x = Mathf.Cos(angle);
-            float z = Mathf.Sin(angle);
-
-            vertices[i + 1] = new Vector3(x, 0f, z);
-            normals[i + 1] = Vector3.up;
-            uvs[i + 1] = new Vector2(x * 0.5f + 0.5f, z * 0.5f + 0.5f);
-        }
-
-        int triangleIndex = 0;
-
-        for (int i = 0; i < segmentCount; i++) {
-            int current = i + 1;
-            int next = i == segmentCount - 1 ? 1 : i + 2;
-
-            triangles[triangleIndex++] = 0;
-            triangles[triangleIndex++] = current;
-            triangles[triangleIndex++] = next;
-
-            triangles[triangleIndex++] = 0;
-            triangles[triangleIndex++] = next;
-            triangles[triangleIndex++] = current;
-        }
-
-        Mesh mesh = new Mesh();
-        mesh.name = "CPU Terrain Brush Disk Preview Mesh";
-        mesh.vertices = vertices;
-        mesh.normals = normals;
-        mesh.uv = uvs;
-        mesh.triangles = triangles;
-        mesh.RecalculateBounds();
-
-        return mesh;
-    }
-
-    private void SetBrushPreviewMaterialColor(Material material, Color color) {
-        if (material == null) {
-            return;
-        }
-
-        if (material.HasProperty("_BaseColor")) {
-            material.SetColor("_BaseColor", color);
-        }
-
-        if (material.HasProperty("_Color")) {
-            material.SetColor("_Color", color);
-        }
-
-        material.color = color;
-    }
-
     private void UpdateBrushPreviewVisual() {
+        if (brushPreview == null) {
+            return;
+        }
+
         bool shouldShow = showBrushPreview && hasBrushHit;
-
-        if (brushPreviewObject == null) {
-            return;
-        }
-
-        brushPreviewObject.SetActive(shouldShow);
-
-        if (!shouldShow) {
-            return;
-        }
-
-        UpdateBrushPreviewMesh();
-
-        if (brushType == CpuTerrainBrushType.Flatten) {
-            brushPreviewObject.transform.position = brushHitPoint;
-            brushPreviewObject.transform.rotation = Quaternion.identity;
-            brushPreviewObject.transform.localScale = Vector3.one * editRadius;
-        }
-        else {
-            brushPreviewObject.transform.position = brushHitPoint;
-            brushPreviewObject.transform.rotation = Quaternion.identity;
-            brushPreviewObject.transform.localScale = Vector3.one * editRadius * 2f;
-        }
-
-        if (brushPreviewRenderer != null) {
-            SetBrushPreviewMaterialColor(brushPreviewRenderer.material, brushPreviewColor);
-        }
+        brushPreview.UpdatePreview(shouldShow, brushHitPoint, editRadius, brushType, brushPreviewColor);
     }
 
-    private void UpdateBrushPreviewMesh() {
-        if (brushPreviewFilter == null) {
-            return;
-        }
-
-        Mesh targetMesh = brushType == CpuTerrainBrushType.Flatten ? diskPreviewMesh : spherePreviewMesh;
-
-        if (brushPreviewFilter.sharedMesh != targetMesh) {
-            brushPreviewFilter.sharedMesh = targetMesh;
+    private void OnDestroy() {
+        if (brushPreview != null) {
+            brushPreview.Dispose();
+            brushPreview = null;
         }
     }
 
