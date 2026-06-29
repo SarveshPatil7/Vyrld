@@ -18,6 +18,7 @@ public class CpuTerrainChunkManager : MonoBehaviour {
 
     [Header("Save/Load")]
     [SerializeField] private bool loadSavedChunksOnStart = true;
+    [SerializeField] private string worldName = "DevWorld";
 
     [Header("Undo")]
     [SerializeField] private int maxUndoSteps = 30;
@@ -56,7 +57,7 @@ public class CpuTerrainChunkManager : MonoBehaviour {
         );
 
         chunk.name = $"CPU_Terrain_Chunk_{chunkCoord.x}_{chunkCoord.y}_{chunkCoord.z}";
-        chunk.Initialize(chunkCoord, cellCount, cellSize, seed, loadSavedChunksOnStart);
+        chunk.Initialize(chunkCoord, cellCount, cellSize, seed, loadSavedChunksOnStart, worldName);
 
         chunks.Add(chunkCoord, chunk);
     }
@@ -77,13 +78,28 @@ public class CpuTerrainChunkManager : MonoBehaviour {
     }
 
     public void SaveAllChunks() {
+        SaveWorldMetadata();
+
         foreach (CpuTerrainChunk chunk in chunks.Values) {
             if (chunk != null) {
                 chunk.SaveChunk();
             }
         }
 
-        Debug.Log($"Saved {chunks.Count} CPU terrain chunks.");
+        Debug.Log($"Saved {chunks.Count} CPU terrain chunks to world: {worldName}");
+    }
+
+    private void SaveWorldMetadata() {
+        TerrainWorldSaveMetadata existingMetadata = DensityChunkSaveLoad.LoadMetadata(worldName);
+
+        TerrainWorldSaveMetadata metadata = existingMetadata ?? new TerrainWorldSaveMetadata(worldName, seed, cellCount, cellSize);
+
+        metadata.worldName = worldName;
+        metadata.seed = seed;
+        metadata.cellCount = cellCount;
+        metadata.cellSize = cellSize;
+
+        DensityChunkSaveLoad.SaveMetadata(metadata);
     }
 
     public void LoadAllChunks() {

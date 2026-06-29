@@ -4,10 +4,13 @@ using UnityEngine;
 public static class DensityChunkSaveLoad {
     private const int SaveVersion = 1;
     private const string Header = "WOK_DENSITY_CHUNK";
+    private const string RootFolderName = "WorldOfKamish";
+    private const string SavesFolderName = "Saves";
+    private const string DensityChunksFolderName = "DensityChunks";
+    private const string MetadataFileName = "world_metadata.json";
 
-    public static void Save(DensityChunkData data) {
-        string path = GetChunkPath(data.chunkCoord);
-
+    public static void Save(DensityChunkData data, string worldName) {
+        string path = GetChunkPath(worldName, data.chunkCoord);
         string directory = Path.GetDirectoryName(path);
 
         if (!Directory.Exists(directory)) {
@@ -18,16 +21,13 @@ public static class DensityChunkSaveLoad {
 
         writer.Write(Header);
         writer.Write(SaveVersion);
-
         writer.Write(data.chunkCoord.x);
         writer.Write(data.chunkCoord.y);
         writer.Write(data.chunkCoord.z);
-
         writer.Write(data.cellCount);
         writer.Write(data.cellSize);
 
         float[] raw = data.GetRawDensityArray();
-
         writer.Write(raw.Length);
 
         for (int i = 0; i < raw.Length; i++) {
@@ -37,8 +37,8 @@ public static class DensityChunkSaveLoad {
         Debug.Log($"Saved density chunk to: {path}");
     }
 
-    public static DensityChunkData Load(Vector3Int chunkCoord, int expectedCellCount, float expectedCellSize) {
-        string path = GetChunkPath(chunkCoord);
+    public static DensityChunkData Load(string worldName, Vector3Int chunkCoord, int expectedCellCount, float expectedCellSize) {
+        string path = GetChunkPath(worldName, chunkCoord);
 
         if (!File.Exists(path)) {
             Debug.LogWarning($"No saved density chunk found at: {path}");
@@ -61,12 +61,7 @@ public static class DensityChunkSaveLoad {
             return null;
         }
 
-        Vector3Int savedCoord = new Vector3Int(
-            reader.ReadInt32(),
-            reader.ReadInt32(),
-            reader.ReadInt32()
-        );
-
+        Vector3Int savedCoord = new Vector3Int(reader.ReadInt32(), reader.ReadInt32(), reader.ReadInt32());
         int savedCellCount = reader.ReadInt32();
         float savedCellSize = reader.ReadSingle();
 
@@ -85,7 +80,6 @@ public static class DensityChunkSaveLoad {
         }
 
         DensityChunkData data = new DensityChunkData(savedCoord, savedCellCount, savedCellSize);
-
         int savedLength = reader.ReadInt32();
         float[] raw = data.GetRawDensityArray();
 
@@ -99,24 +93,85 @@ public static class DensityChunkSaveLoad {
         }
 
         Debug.Log($"Loaded density chunk from: {path}");
-
         return data;
     }
 
-    public static bool SaveExists(Vector3Int chunkCoord) {
-        string path = GetChunkPath(chunkCoord);
+    public static bool SaveExists(string worldName, Vector3Int chunkCoord) {
+        string path = GetChunkPath(worldName, chunkCoord);
         return File.Exists(path);
     }
 
-    private static string GetChunkPath(Vector3Int chunkCoord) {
-        string folder = Path.Combine(
-            Application.persistentDataPath,
-            "WorldOfKamish",
-            "DensityChunks"
-        );
+    public static void SaveMetadata(TerrainWorldSaveMetadata metadata) {
+        if (metadata == null) {
+            Debug.LogError("Cannot save terrain world metadata. Metadata is null.");
+            return;
+        }
 
+        string path = GetMetadataPath(metadata.worldName);
+        string directory = Path.GetDirectoryName(path);
+
+        if (!Directory.Exists(directory)) {
+            Directory.CreateDirectory(directory);
+        }
+
+        metadata.MarkSavedNow();
+
+        string json = JsonUtility.ToJson(metadata, true);
+        File.WriteAllText(path, json);
+
+        Debug.Log($"Saved terrain world metadata to: {path}");
+    }
+
+    public static TerrainWorldSaveMetadata LoadMetadata(string worldName) {
+        string path = GetMetadataPath(worldName);
+
+        if (!File.Exists(path)) {
+            return null;
+        }
+
+        string json = File.ReadAllText(path);
+        return JsonUtility.FromJson<TerrainWorldSaveMetadata>(json);
+    }
+
+    public static string GetWorldFolder(string worldName) {
+        string safeWorldName = GetSafeWorldName(worldName);
+
+        return Path.Combine(GetSaveRootFolder(), RootFolderName, SavesFolderName, safeWorldName);
+    }
+
+    private static string GetSaveRootFolder() {
+    #if UNITY_EDITOR
+        DirectoryInfo assetsDirectory = Directory.GetParent(Application.dataPath);
+
+        if (assetsDirectory != null) {
+            return assetsDirectory.FullName;
+        }
+
+        return Application.dataPath;
+        #else
+    return Application.persistentDataPath;
+    #endif
+    }
+
+    private static string GetChunkPath(string worldName, Vector3Int chunkCoord) {
+        string folder = Path.Combine(GetWorldFolder(worldName), DensityChunksFolderName);
         string fileName = $"chunk_{chunkCoord.x}_{chunkCoord.y}_{chunkCoord.z}.wokdensity";
-
         return Path.Combine(folder, fileName);
+    }
+
+    private static string GetMetadataPath(string worldName) {
+        return Path.Combine(GetWorldFolder(worldName), MetadataFileName);
+    }
+
+    private static string GetSafeWorldName(string worldName) {
+        if (string.IsNullOrWhiteSpace(worldName)) {
+            return "DevWorld";
+        }
+
+        foreach (char invalidChar in Path.GetInvalidFileNameChars()) {
+            worldName = worldName.Replace(invalidChar, '_');
+        }
+
+        return worldName.Trim();
     }
 }

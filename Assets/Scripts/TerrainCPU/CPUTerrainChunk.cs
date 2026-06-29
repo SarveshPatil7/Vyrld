@@ -10,6 +10,8 @@ using UnityEditor;
 [RequireComponent(typeof(MeshCollider))]
 
 public class CpuTerrainChunk : MonoBehaviour {
+    [SerializeField] private string worldName = "DevWorld";
+
     [Header("Chunk Settings")]
     [SerializeField] private Vector3Int chunkCoord = Vector3Int.zero;
     [SerializeField] private int cellCount = 16;
@@ -140,15 +142,11 @@ public class CpuTerrainChunk : MonoBehaviour {
             return;
         }
 
-        DensityChunkSaveLoad.Save(densityData);
+        DensityChunkSaveLoad.Save(densityData, worldName);
     }
 
     public void LoadChunk() {
-        DensityChunkData loadedData = DensityChunkSaveLoad.Load(
-        chunkCoord,
-        cellCount,
-        cellSize
-        );
+        DensityChunkData loadedData = DensityChunkSaveLoad.Load(worldName, chunkCoord, cellCount, cellSize);
 
         if (loadedData == null) {
             return;
@@ -167,26 +165,27 @@ public class CpuTerrainChunk : MonoBehaviour {
 
     }
 
-    public void Initialize(Vector3Int newChunkCoord, int newCellCount, float newCellSize, int newSeed, bool loadSavedIfAvailable) {
-        chunkCoord = newChunkCoord;
-        cellCount = newCellCount;
-        cellSize = newCellSize;
-        seed = newSeed;
+    public void Initialize(Vector3Int chunkCoord, int cellCount, float cellSize, int seed, bool loadSavedChunkOnStart, string worldName) {
+        this.worldName = worldName;
+        this.chunkCoord = chunkCoord;
+        this.cellCount = cellCount;
+        this.cellSize = cellSize;
+        this.seed = seed;
 
         UpdateChunkTransformPosition();
 
-        if (loadSavedIfAvailable && DensityChunkSaveLoad.SaveExists(chunkCoord)) {
+        if (loadSavedChunkOnStart && DensityChunkSaveLoad.SaveExists(worldName, chunkCoord)) {
             LoadChunk();
             Debug.Log($"Chunk {chunkCoord} loaded from saved density file.");
         }
         else {
             GenerateNewChunk();
 
-            if (loadSavedIfAvailable) {
+            if (loadSavedChunkOnStart) {
                 Debug.Log($"Chunk {chunkCoord} generated from seed because no save file exists.");
             }
             else {
-                Debug.Log($"Chunk {chunkCoord} generated from seed because auto-load is disabled.");
+                Debug.Log($"Chunk {chunkCoord} generated from seed because saved load is disabled.");
             }
         }
     }
