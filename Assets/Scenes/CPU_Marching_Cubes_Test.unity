@@ -156,6 +156,8 @@ MonoBehaviour:
   radiusY: 1
   radiusZ: 2
   loadSavedChunksOnStart: 1
+  worldName: DevWorld
+  maxUndoSteps: 30
 --- !u!4 &105543411
 Transform:
   m_ObjectHideFlags: 0
@@ -345,6 +347,56 @@ MonoBehaviour:
   m_ShadowLayerMask: 1
   m_RenderingLayers: 1
   m_ShadowRenderingLayers: 1
+--- !u!1 &1317404139
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1317404141}
+  - component: {fileID: 1317404140}
+  m_Layer: 0
+  m_Name: Game_Mode_Manager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1317404140
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1317404139}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 01b66a417e7416c47ac107c55604c858, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GameModeManager
+  startingMode: 1
+  playtestModeKey: 264
+  terraformModeKey: 265
+  authoringModeKey: 256
+  modeTools:
+  - {fileID: 1710681767}
+--- !u!4 &1317404141
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1317404139}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 65.45341, y: -70.18894, z: -6.91625}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1457796456
 GameObject:
   m_ObjectHideFlags: 0
@@ -493,7 +545,7 @@ GameObject:
   - component: {fileID: 1710681768}
   - component: {fileID: 1710681767}
   m_Layer: 0
-  m_Name: CPU_Terrain_Edit_Tester
+  m_Name: CPU_Terrain_Edit_Tool
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -554,3 +606,4 @@ SceneRoots:
   - {fileID: 1710681768}
   - {fileID: 105543411}
   - {fileID: 913870977}
+  - {fileID: 1317404141}

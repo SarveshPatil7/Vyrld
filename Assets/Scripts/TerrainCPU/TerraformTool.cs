@@ -1,6 +1,8 @@
 using UnityEngine;
 
-public class CpuTerrainEditTool : MonoBehaviour {
+public class TerraformTool : TerrainModeTool {
+    public override TerrainInteractionMode Mode => TerrainInteractionMode.Terraform;
+
     [SerializeField] private Camera targetCamera;
     [SerializeField] private CpuTerrainChunkManager chunkManager;
 
@@ -32,7 +34,7 @@ public class CpuTerrainEditTool : MonoBehaviour {
     private bool hasBrushHit;
     private Vector3 brushHitPoint;
 
-    private CpuTerrainBrushPreview brushPreview;
+    private TerrainBrushPreview brushPreview;
 
     [Header("Brush")]
     [SerializeField] private CpuTerrainBrushType brushType = CpuTerrainBrushType.SmoothSphere;
@@ -54,7 +56,7 @@ public class CpuTerrainEditTool : MonoBehaviour {
             chunkManager = FindAnyObjectByType<CpuTerrainChunkManager>();
         }
 
-        brushPreview = new CpuTerrainBrushPreview();
+        brushPreview = new TerrainBrushPreview();
         brushPreview.Initialize(brushPreviewColor);
     }
     private void Update() {
@@ -292,6 +294,20 @@ public class CpuTerrainEditTool : MonoBehaviour {
             brushPreview.Dispose();
             brushPreview = null;
         }
+    }
+
+    public override void EnterMode() {
+        base.EnterMode();
+    }
+
+    public override void ExitMode() {
+        EndUndoStroke();
+
+        if (brushPreview != null) {
+            brushPreview.Hide();
+        }
+
+        base.ExitMode();
     }
 
 }

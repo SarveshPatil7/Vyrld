@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class CpuTerrainBrushPreview {
+public class TerrainBrushPreview {
     private GameObject previewObject;
     private MeshFilter previewFilter;
     private MeshRenderer previewRenderer;
