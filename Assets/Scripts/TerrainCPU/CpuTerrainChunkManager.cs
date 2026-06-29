@@ -112,11 +112,10 @@ public class CpuTerrainChunkManager : MonoBehaviour {
 
     public void ApplyBrushEdit(Vector3 worldCenter, float radius, float strength, CpuTerrainBrushType brushType, CpuTerrainFlattenMode flattenMode, float roughnessScale, float roughnessAmount) {
         CpuTerrainBrushContext brushContext = BuildBrushContext(worldCenter, radius, brushType, flattenMode);
-
-        int editedChunkCount = 0;
+        List<CpuTerrainChunk> editedChunks = new List<CpuTerrainChunk>();
 
         foreach (CpuTerrainChunk chunk in chunks.Values) {
-            if (chunk == null) {
+            if (chunk == null || chunk.DensityData == null) {
                 continue;
             }
 
@@ -124,20 +123,13 @@ public class CpuTerrainChunkManager : MonoBehaviour {
                 continue;
             }
 
-            chunk.ApplyBrushEdit(
-                worldCenter,
-                radius,
-                strength,
-                brushType,
-                roughnessScale,
-                roughnessAmount,
-                brushContext
-            );
-
-            editedChunkCount++;
+            chunk.ApplyBrushEditToDensity(worldCenter, radius, strength, brushType, roughnessScale, roughnessAmount, brushContext);
+            editedChunks.Add(chunk);
         }
 
-        Debug.Log($"Applied brush edit to {editedChunkCount} chunks.");
+        for (int i = 0; i < editedChunks.Count; i++) {
+            editedChunks[i].RebuildMesh();
+        }
     }
 
     private CpuTerrainBrushContext BuildBrushContext(Vector3 worldCenter, float radius, CpuTerrainBrushType brushType, CpuTerrainFlattenMode flattenMode) {

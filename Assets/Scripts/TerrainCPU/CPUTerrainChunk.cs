@@ -103,6 +103,11 @@ public class CpuTerrainChunk : MonoBehaviour {
 
     public void ApplyBrushEdit(Vector3 worldCenter, float radius, float strength, CpuTerrainBrushType brushType, float roughnessScale, float roughnessAmount, 
                                 CpuTerrainBrushContext brushContext) {
+        ApplyBrushEditToDensity(worldCenter, radius, strength, brushType, roughnessScale, roughnessAmount, brushContext);
+        RebuildMesh();
+    }
+
+    public void ApplyBrushEditToDensity(Vector3 worldCenter, float radius, float strength, CpuTerrainBrushType brushType, float roughnessScale, float roughnessAmount, CpuTerrainBrushContext brushContext) {
         if (densityData == null) {
             Debug.LogError("Cannot edit terrain. Density data is null.");
             return;
@@ -111,24 +116,19 @@ public class CpuTerrainChunk : MonoBehaviour {
         for (int x = 0; x < densityData.sampleCount; x++) {
             for (int y = 0; y < densityData.sampleCount; y++) {
                 for (int z = 0; z < densityData.sampleCount; z++) {
-                    Vector3 worldPos = densityData.SampleToWorldPosition(x, y, z);
-
+                    Vector3 sampleWorldPosition = densityData.SampleToWorldPosition(x, y, z);
                     float oldDensity = densityData.Get(x, y, z);
 
-                    float densityDelta = CpuTerrainBrush.EvaluateDensityDelta(worldPos, oldDensity, worldCenter, radius, strength, brushType, roughnessScale, 
-                                                                                roughnessAmount, brushContext);
+                    float densityDelta = CpuTerrainBrush.EvaluateDensityDelta(sampleWorldPosition, oldDensity, worldCenter, radius, strength, brushType, roughnessScale, roughnessAmount, brushContext);
 
                     if (Mathf.Approximately(densityDelta, 0f)) {
                         continue;
                     }
 
-                    float newDensity = oldDensity + densityDelta;
-                    densityData.Set(x, y, z, newDensity);
+                    densityData.Set(x, y, z, oldDensity + densityDelta);
                 }
             }
         }
-
-        RebuildMesh();
     }
 
     public void SaveChunk() {
