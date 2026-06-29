@@ -158,6 +158,36 @@ MonoBehaviour:
   loadSavedChunksOnStart: 1
   worldName: DevWorld
   maxUndoSteps: 30
+  defaultRegionId: 0
+  terrainRegions:
+  - regionId: 0
+    regionName: Default
+    seedOffset: 0
+    noiseScale: 0.06
+    baseHeight: 8
+    heightVariation: 8
+  - regionId: 1
+    regionName: Flatlands
+    seedOffset: 1000
+    noiseScale: 0.035
+    baseHeight: 7
+    heightVariation: 2
+  - regionId: 2
+    regionName: Mountains
+    seedOffset: 2000
+    noiseScale: 0.18
+    baseHeight: 10
+    heightVariation: 10.1
+  - regionId: 3
+    regionName: Ocean
+    seedOffset: 3000
+    noiseScale: 0.045
+    baseHeight: 1
+    heightVariation: 4
+  regionBlendSearchRadiusX: 1
+  regionBlendSearchRadiusY: 1
+  regionBlendSearchRadiusZ: 1
+  regionBlendDistanceInChunks: 1.5
 --- !u!4 &105543411
 Transform:
   m_ObjectHideFlags: 0
@@ -437,8 +467,20 @@ MonoBehaviour:
   hoverColor: {r: 1, g: 1, b: 0, a: 0.8}
   selectedColor: {r: 0, g: 1, b: 1, a: 0.8}
   showAuthoringOverlay: 1
+  areaSelectionKey: 120
+  cancelAreaSelectionKey: 27
+  areaSelectionPreviewColor: {r: 1, g: 0.5, b: 0, a: 0.9}
   showSelectionInGameView: 1
   selectionLineWidth: 0.05
+  chunkManager: {fileID: 0}
+  generateNearbyChunksKey: 103
+  generateRadiusX: 5
+  generateRadiusY: 1
+  generateRadiusZ: 9
+  previousRegionKey: 91
+  nextRegionKey: 93
+  assignRegionKey: 98
+  activeRegionIndex: 0
 --- !u!4 &1457131052
 Transform:
   m_ObjectHideFlags: 0
