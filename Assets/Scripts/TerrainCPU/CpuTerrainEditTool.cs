@@ -1,39 +1,36 @@
 using UnityEngine;
 
 public class CpuTerrainEditTool : MonoBehaviour {
-    public Camera targetCamera;
-    public CpuTerrainChunkManager chunkManager;
+    [SerializeField] private Camera targetCamera;
+    [SerializeField] private CpuTerrainChunkManager chunkManager;
 
     [Header("Edit Settings")]
-    public float editRadius = 6f;
-    public float editStrength = 12f;
-    public float rayDistance = 200f;
+    [SerializeField] private float editRadius = 6f;
+    [SerializeField] private float editStrength = 12f;
+    [SerializeField] private float rayDistance = 200f;
 
     [Header("Edit Adjustment")]
-    public float radiusScrollStep = 0.5f;
-    public float strengthStep = 1f;
-    public float minEditRadius = 0.5f;
-    public float maxEditRadius = 20f;
-    public float minEditStrength = 0.5f;
-    public float maxEditStrength = 50f;
+    [SerializeField] private float radiusScrollStep = 0.5f;
+    [SerializeField] private float strengthStep = 1f;
+    [SerializeField] private float minEditRadius = 0.5f;
+    [SerializeField] private float maxEditRadius = 20f;
+    [SerializeField] private float minEditStrength = 0.5f;
+    [SerializeField] private float maxEditStrength = 50f;
 
     [Header("Continuous Editing")]
-    public bool continuousEditing = true;
-    public float editsPerSecond = 12f;
+    [SerializeField] private bool continuousEditing = true;
+    [SerializeField] private float editsPerSecond = 12f;
     private float nextEditTime = 0f;
     private TerrainEditUndoSnapshot activeStrokeUndoSnapshot;
     private bool isUndoStrokeActive;
     private bool activeStrokeHadSuccessfulEdit;
 
     [Header("Brush Preview")]
-    public bool showBrushPreview = true;
-    public Color brushPreviewColor = new Color(1f, 1f, 1f, 0.25f);
+    [SerializeField] private bool showBrushPreview = true;
+    [SerializeField] private Color brushPreviewColor = new Color(1f, 1f, 1f, 0.25f);
 
     private bool hasBrushHit;
     private Vector3 brushHitPoint;
-    private RaycastHit brushHit;
-
-    private const int flattenPreviewSegmentCount = 96;
 
     private GameObject brushPreviewObject;
     private MeshFilter brushPreviewFilter;
@@ -42,15 +39,15 @@ public class CpuTerrainEditTool : MonoBehaviour {
     private Mesh diskPreviewMesh;
 
     [Header("Brush")]
-    public CpuTerrainBrushType brushType = CpuTerrainBrushType.SmoothSphere;
+    [SerializeField] private CpuTerrainBrushType brushType = CpuTerrainBrushType.SmoothSphere;
 
     [Header("Rough Brush")]
-    public float roughnessScale = 0.35f;
+    [SerializeField] private float roughnessScale = 3.0f;
     [Range(0f, 5f)]
-    public float roughnessAmount = 0.6f;
+    [SerializeField] private float roughnessAmount = 2.0f;
 
     [Header("Flatten Brush")]
-    public CpuTerrainFlattenMode flattenMode = CpuTerrainFlattenMode.Horizontal;
+    [SerializeField] private CpuTerrainFlattenMode flattenMode = CpuTerrainFlattenMode.Horizontal;
 
     private void Awake() {
         if (targetCamera == null) {
@@ -83,7 +80,6 @@ public class CpuTerrainEditTool : MonoBehaviour {
         if (Physics.Raycast(ray, out RaycastHit hit, rayDistance)) {
             hasBrushHit = true;
             brushHitPoint = hit.point;
-            brushHit = hit;
         }
     }
 
@@ -126,7 +122,7 @@ public class CpuTerrainEditTool : MonoBehaviour {
             SetBrushType(CpuTerrainBrushType.Flatten);
         }
 
-        if (Input.GetKeyDown(KeyCode.Keypad5)) {
+        if (Input.GetKeyDown(KeyCode.Alpha5) || Input.GetKeyDown(KeyCode.Keypad5)) {
             ToggleFlattenMode();
         }
     }

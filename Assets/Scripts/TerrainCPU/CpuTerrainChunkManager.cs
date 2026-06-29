@@ -4,23 +4,23 @@ using UnityEngine;
 
 public class CpuTerrainChunkManager : MonoBehaviour {
     [Header("Chunk Prefab")]
-    public CpuTerrainChunk chunkPrefab;
+    [SerializeField] private CpuTerrainChunk chunkPrefab;
 
     [Header("Generation Settings")]
-    public int cellCount = 16;
-    public float cellSize = 1f;
-    public int seed = 12345;
+    [SerializeField] private int cellCount = 16;
+    [SerializeField] private float cellSize = 1f;
+    [SerializeField] private int seed = 12345;
 
     [Header("Test Grid")]
-    public int radiusX = 1;
-    public int radiusY = 1;
-    public int radiusZ = 1;
+    [SerializeField] private int radiusX = 1;
+    [SerializeField] private int radiusY = 1;
+    [SerializeField] private int radiusZ = 1;
 
     [Header("Save/Load")]
-    public bool loadSavedChunksOnStart = true;
+    [SerializeField] private bool loadSavedChunksOnStart = true;
 
     [Header("Undo")]
-    public int maxUndoSteps = 30;
+    [SerializeField] private int maxUndoSteps = 30;
 
     private TerrainEditUndoSystem undoSystem;
 
@@ -289,9 +289,9 @@ public class CpuTerrainChunkManager : MonoBehaviour {
 
     private bool DoesBrushOverlapChunk(Vector3 worldCenter, float radius, CpuTerrainChunk chunk) {
         Vector3 chunkMin = new Vector3(
-        chunk.chunkCoord.x * cellCount * cellSize,
-        chunk.chunkCoord.y * cellCount * cellSize,
-        chunk.chunkCoord.z * cellCount * cellSize
+        chunk.ChunkCoord.x * cellCount * cellSize,
+        chunk.ChunkCoord.y * cellCount * cellSize,
+        chunk.ChunkCoord.z * cellCount * cellSize
     );
 
         Vector3 chunkMax = chunkMin + new Vector3(
@@ -350,7 +350,7 @@ public class CpuTerrainChunkManager : MonoBehaviour {
                 continue;
             }
 
-            if (snapshot.ContainsChunk(chunk.chunkCoord)) {
+            if (snapshot.ContainsChunk(chunk.ChunkCoord)) {
                 continue;
             }
 
@@ -358,7 +358,7 @@ public class CpuTerrainChunkManager : MonoBehaviour {
             float[] copiedDensityArray = new float[sourceDensityArray.Length];
             Array.Copy(sourceDensityArray, copiedDensityArray, sourceDensityArray.Length);
 
-            snapshot.AddChunk(chunk.chunkCoord, copiedDensityArray);
+            snapshot.AddChunk(chunk.ChunkCoord, copiedDensityArray);
         }
     }
 

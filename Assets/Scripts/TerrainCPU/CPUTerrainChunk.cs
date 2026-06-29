@@ -8,24 +8,24 @@ using System;
 
 public class CpuTerrainChunk : MonoBehaviour {
     [Header("Chunk Settings")]
-    public Vector3Int chunkCoord = Vector3Int.zero;
-    public int cellCount = 16;
-    public float cellSize = 1f;
-    public int seed = 12345;
+    [SerializeField] private Vector3Int chunkCoord = Vector3Int.zero;
+    [SerializeField] private int cellCount = 16;
+    [SerializeField] private float cellSize = 1f;
+    [SerializeField] private int seed = 12345;
 
     [Header("Debug")]
-    public bool generateOnStart = true;
-    public bool logDensityRange = true;
+    [SerializeField] private bool generateOnStart = true;
+    [SerializeField] private bool logDensityRange = true;
 
     [Header("Gizmos")]
-    public bool showChunkBounds = true;
-    public bool showChunkLabel = true;
-    public Color chunkBoundsColor = new Color(0.5f, 0.5f, 0.5f, 0.25f);
+    [SerializeField] private bool showChunkBounds = true;
+    [SerializeField] private bool showChunkLabel = true;
+    [SerializeField] private Color chunkBoundsColor = new Color(0.5f, 0.5f, 0.5f, 0.25f);
 
     private MeshFilter meshFilter;
     private MeshCollider meshCollider;
     private DensityChunkData densityData;
-
+    public Vector3Int ChunkCoord => chunkCoord;
     public DensityChunkData DensityData => densityData;
 
     private void Awake() {
