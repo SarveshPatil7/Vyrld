@@ -158,36 +158,74 @@ MonoBehaviour:
   loadSavedChunksOnStart: 1
   worldName: DevWorld
   maxUndoSteps: 30
-  defaultRegionId: 0
-  terrainRegions:
-  - regionId: 0
-    regionName: Default
-    seedOffset: 0
-    noiseScale: 0.06
-    baseHeight: 8
-    heightVariation: 8
-  - regionId: 1
-    regionName: Flatlands
-    seedOffset: 1000
-    noiseScale: 0.035
-    baseHeight: 7
-    heightVariation: 2
-  - regionId: 2
-    regionName: Mountains
-    seedOffset: 2000
-    noiseScale: 0.18
-    baseHeight: 10
-    heightVariation: 10.1
-  - regionId: 3
-    regionName: Ocean
-    seedOffset: 3000
-    noiseScale: 0.045
-    baseHeight: 1
-    heightVariation: 4
-  regionBlendSearchRadiusX: 1
-  regionBlendSearchRadiusY: 1
-  regionBlendSearchRadiusZ: 1
-  regionBlendDistanceInChunks: 1.5
+  defaultNoisePresetIndex: 0
+  noisePresets:
+  - presetName: Default
+    noiseMode: 0
+    seed: 12345
+    numOctaves: 4
+    lacunarity: 2
+    persistence: 0.5
+    noiseScale: 1
+    noiseWeight: 1
+    closeEdges: 0
+    floorOffset: 1
+    weightMultiplier: 1
+    verticalNoiseScaleMultiplier: 1
+    densityOffset: 0
+    hardFloorHeight: -32
+    hardFloorWeight: 0
+    shaderParams: {x: 0, y: 0, z: 0, w: 0}
+  - presetName: Flatlands
+    noiseMode: 0
+    seed: 12345
+    numOctaves: 3
+    lacunarity: 2
+    persistence: 0.4
+    noiseScale: 36
+    noiseWeight: 2
+    closeEdges: 0
+    floorOffset: 7
+    weightMultiplier: 1
+    verticalNoiseScaleMultiplier: 1
+    densityOffset: 0
+    hardFloorHeight: -32
+    hardFloorWeight: 0
+    shaderParams: {x: 0, y: 0, z: 0, w: 0}
+  - presetName: Mountains
+    noiseMode: 0
+    seed: 12345
+    numOctaves: 5
+    lacunarity: 2.1
+    persistence: 0.55
+    noiseScale: 28
+    noiseWeight: 18
+    closeEdges: 0
+    floorOffset: 10
+    weightMultiplier: 1
+    verticalNoiseScaleMultiplier: 1
+    densityOffset: 0
+    hardFloorHeight: -32
+    hardFloorWeight: 0
+    shaderParams: {x: 0, y: 0, z: 0, w: 0}
+  - presetName: Ocean
+    noiseMode: 0
+    seed: 12345
+    numOctaves: 4
+    lacunarity: 2
+    persistence: 0.45
+    noiseScale: 40
+    noiseWeight: 4
+    closeEdges: 0
+    floorOffset: 1
+    weightMultiplier: 1
+    verticalNoiseScaleMultiplier: 1
+    densityOffset: 0
+    hardFloorHeight: -32
+    hardFloorWeight: 0
+    shaderParams: {x: 0, y: 0, z: 0, w: 0}
+  minGeneratedChunkY: -2
+  maxGeneratedChunkY: 4
 --- !u!4 &105543411
 Transform:
   m_ObjectHideFlags: 0
@@ -475,12 +513,11 @@ MonoBehaviour:
   chunkManager: {fileID: 0}
   generateNearbyChunksKey: 103
   generateRadiusX: 5
-  generateRadiusY: 1
+  generateRadiusY: 3
   generateRadiusZ: 9
-  previousRegionKey: 91
-  nextRegionKey: 93
-  assignRegionKey: 98
-  activeRegionIndex: 0
+  previousNoisePresetKey: 91
+  nextNoisePresetKey: 93
+  activeNoisePresetIndex: 0
 --- !u!4 &1457131052
 Transform:
   m_ObjectHideFlags: 0
