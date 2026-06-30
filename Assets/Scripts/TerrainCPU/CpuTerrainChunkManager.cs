@@ -107,10 +107,14 @@ public class CpuTerrainChunkManager : MonoBehaviour {
     }
 
     private CpuTerrainChunk CreateChunk(Vector3Int chunkCoord) {
-        return CreateChunk(chunkCoord, defaultNoisePresetIndex);
+        return CreateChunk(chunkCoord, defaultNoisePresetIndex, loadSavedChunksOnStart);
     }
 
     private CpuTerrainChunk CreateChunk(Vector3Int chunkCoord, int noisePresetIndex) {
+        return CreateChunk(chunkCoord, noisePresetIndex, loadSavedChunksOnStart);
+    }
+
+    private CpuTerrainChunk CreateChunk(Vector3Int chunkCoord, int noisePresetIndex, bool loadSavedChunk) {
         if (chunks.TryGetValue(chunkCoord, out CpuTerrainChunk existingChunk)) {
             return existingChunk;
         }
@@ -125,7 +129,7 @@ public class CpuTerrainChunkManager : MonoBehaviour {
         CpuTerrainChunk chunk = Instantiate(chunkPrefab, transform);
 
         chunk.name = $"CPU_Terrain_Chunk_{chunkCoord.x}_{chunkCoord.y}_{chunkCoord.z}";
-        chunk.Initialize(chunkCoord, cellCount, cellSize, seed, loadSavedChunksOnStart, worldName, noisePreset);
+        chunk.Initialize(chunkCoord, cellCount, cellSize, seed, loadSavedChunk, worldName, noisePreset);
 
         chunks.Add(chunkCoord, chunk);
 
@@ -200,9 +204,10 @@ public class CpuTerrainChunkManager : MonoBehaviour {
                 continue;
             }
 
+            Vector3Int sourceCoord = sourceChunk.ChunkCoord;
+
             for (int x = -chunkRadiusX; x <= chunkRadiusX; x++) {
                 for (int z = -chunkRadiusZ; z <= chunkRadiusZ; z++) {
-                    Vector3Int sourceCoord = sourceChunk.ChunkCoord;
                     targetColumns.Add(new Vector2Int(sourceCoord.x + x, sourceCoord.z + z));
                 }
             }
@@ -219,7 +224,7 @@ public class CpuTerrainChunkManager : MonoBehaviour {
                     continue;
                 }
 
-                CpuTerrainChunk createdChunk = CreateChunk(chunkCoord, noisePresetIndex);
+                CpuTerrainChunk createdChunk = CreateChunk(chunkCoord, noisePresetIndex, loadSavedChunk: false);
 
                 if (createdChunk != null) {
                     createdChunks.Add(createdChunk);
@@ -227,10 +232,10 @@ public class CpuTerrainChunkManager : MonoBehaviour {
             }
         }
 
-        Debug.Log($"Generated {createdChunks.Count} chunks in vertical columns using noise preset {GetNoisePresetDisplayName(noisePresetIndex)}.");
+        Debug.Log($"Generated {createdChunks.Count} missing vertical chunks across {targetColumns.Count} columns using noise preset {GetNoisePresetDisplayName(noisePresetIndex)}.");
         return createdChunks;
     }
-    
+
     public void SaveAllChunks() {
         SaveWorldMetadata();
 
