@@ -37,8 +37,7 @@ public class CpuTerrainChunk : MonoBehaviour {
     public string NoisePresetName => noisePreset != null ? noisePreset.presetName : "None";
 
     private void Awake() {
-        meshFilter = GetComponent<MeshFilter>();
-        meshCollider = GetComponent<MeshCollider>();
+        EnsureComponents();
     }
 
     private void Start() {
@@ -63,8 +62,15 @@ public class CpuTerrainChunk : MonoBehaviour {
     }
 
     public void RebuildMesh() {
+        EnsureComponents();
+
         if (densityData == null) {
             Debug.LogError("Cannot rebuild mesh. Density data is null.");
+            return;
+        }
+
+        if (meshFilter == null || meshCollider == null) {
+            Debug.LogError($"Cannot rebuild mesh for chunk {chunkCoord}. MeshFilter or MeshCollider is missing.");
             return;
         }
 
@@ -76,7 +82,7 @@ public class CpuTerrainChunk : MonoBehaviour {
         meshCollider.sharedMesh = null;
         meshCollider.sharedMesh = mesh;
 
-
+        Debug.Log($"Rebuilt mesh for chunk {chunkCoord}. Vertices: {mesh.vertexCount}. Triangles: {mesh.triangles.Length / 3}");
     }
 
     private void UpdateChunkTransformPosition() {
@@ -286,5 +292,15 @@ public class CpuTerrainChunk : MonoBehaviour {
     private float EvaluateSeedDensity(Vector3 worldPosition) {
         EnsureNoisePreset();
         return DensityInitializer.EvaluateDensity(worldPosition, noisePreset);
+    }
+
+    private void EnsureComponents() {
+        if (meshFilter == null) {
+            meshFilter = GetComponent<MeshFilter>();
+        }
+
+        if (meshCollider == null) {
+            meshCollider = GetComponent<MeshCollider>();
+        }
     }
 }

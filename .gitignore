@@ -80,3 +80,4 @@ ServerData/
 
 # World of Kamish generated terrain saves
 WorldOfKamish/
+*.wokdensity

@@ -7,14 +7,18 @@ public class CpuTerrainChunkManager : MonoBehaviour {
     [SerializeField] private CpuTerrainChunk chunkPrefab;
 
     [Header("Generation Settings")]
-    [SerializeField] private int cellCount = 16;
-    [SerializeField] private float cellSize = 1f;
+    [SerializeField] private int cellCount = 32;
+    [SerializeField] private float cellSize = 0.5f;
     [SerializeField] private int seed = 12345;
 
     [Header("Test Grid")]
     [SerializeField] private int radiusX = 1;
     [SerializeField] private int radiusY = 1;
     [SerializeField] private int radiusZ = 1;
+
+    [Header("Startup")]
+    [SerializeField] private bool generateChunksOnStart = false;
+    [SerializeField] private bool loadRegisteredSceneChunksOnStart = true;
 
     [Header("Save/Load")]
     [SerializeField] private bool loadSavedChunksOnStart = true;
@@ -94,6 +98,9 @@ public class CpuTerrainChunkManager : MonoBehaviour {
     [SerializeField] private bool stitchSideBoundaries = true;
     [SerializeField] private bool stitchTopBottomBoundaries = false;
 
+    [Header("Scene Hierarchy")]
+    [SerializeField] private Transform terrainChunkParent;
+
     private class TerrainStitchSample {
     public Vector3Int globalSampleCoord;
     public Vector3 worldPosition;
@@ -108,7 +115,12 @@ public class CpuTerrainChunkManager : MonoBehaviour {
     private readonly Dictionary<Vector3Int, CpuTerrainChunk> chunks = new();
 
     private void Start() {
-        GenerateTestChunks();
+        if (generateChunksOnStart) {
+            GenerateTestChunks();
+            return;
+        }
+
+        RegisterExistingSceneChunks(loadRegisteredSceneChunksOnStart);
     }
 
     public void GenerateTestChunks() {
@@ -123,6 +135,84 @@ public class CpuTerrainChunkManager : MonoBehaviour {
         }
 
         Debug.Log($"Generated {chunks.Count} CPU terrain chunks.");
+    }
+
+    public void GenerateBaseGridIntoScene() {
+        ClearExistingChunks();
+
+        int createdCount = 0;
+
+        for (int x = -radiusX; x <= radiusX; x++) {
+            for (int y = -radiusY; y <= radiusY; y++) {
+                for (int z = -radiusZ; z <= radiusZ; z++) {
+                    Vector3Int chunkCoord = new Vector3Int(x, y, z);
+                    CpuTerrainChunk createdChunk = CreateChunk(chunkCoord, defaultNoisePresetIndex, loadSavedChunk: false);
+
+                    if (createdChunk != null) {
+                        createdCount++;
+                    }
+                }
+            }
+        }
+
+        RegisterExistingSceneChunksForEditing();
+
+        Debug.Log($"Generated base terrain grid into scene. Created {createdCount} chunks. Registered {chunks.Count} chunks. Radius: {radiusX}, {radiusY}, {radiusZ}");
+    }
+
+    public void LoadSavedWorldIntoScene() {
+        ClearExistingChunks();
+
+        List<Vector3Int> savedChunkCoords = DensityChunkSaveLoad.GetSavedChunkCoords(worldName);
+
+        for (int i = 0; i < savedChunkCoords.Count; i++) {
+            CreateChunk(savedChunkCoords[i], defaultNoisePresetIndex, loadSavedChunk: true);
+        }
+
+        Debug.Log($"Loaded {chunks.Count} saved terrain chunks into scene for world: {worldName}");
+    }
+
+    public void RegisterExistingSceneChunksForEditing() {
+        RegisterExistingSceneChunks(false);
+        Debug.Log($"Registered {chunks.Count} existing terrain chunks in scene.");
+    }
+
+    public void ClearTerrainChunksFromScene() {
+        ClearExistingChunks();
+        Debug.Log("Cleared terrain chunks from scene.");
+    }
+
+    private void RegisterExistingSceneChunks(bool loadOrGenerateDensity) {
+        chunks.Clear();
+
+        Transform searchRoot = terrainChunkParent != null ? terrainChunkParent : transform;
+        CpuTerrainChunk[] sceneChunks = searchRoot.GetComponentsInChildren<CpuTerrainChunk>(true);
+
+        for (int i = 0; i < sceneChunks.Length; i++) {
+            CpuTerrainChunk chunk = sceneChunks[i];
+
+            if (chunk == null) {
+                continue;
+            }
+
+            if (chunks.ContainsKey(chunk.ChunkCoord)) {
+                Debug.LogWarning($"Duplicate terrain chunk found at coord {chunk.ChunkCoord}. Keeping first chunk only.");
+                continue;
+            }
+
+            chunks.Add(chunk.ChunkCoord, chunk);
+
+            if (!loadOrGenerateDensity) {
+                continue;
+            }
+
+            if (DensityChunkSaveLoad.SaveExists(worldName, chunk.ChunkCoord)) {
+                chunk.LoadChunk();
+            }
+            else {
+                chunk.ResetChunkToSeed();
+            }
+        }
     }
 
     private CpuTerrainChunk CreateChunk(Vector3Int chunkCoord) {
@@ -145,7 +235,8 @@ public class CpuTerrainChunkManager : MonoBehaviour {
 
         TerrainNoisePreset noisePreset = GetNoisePresetByIndex(noisePresetIndex);
 
-        CpuTerrainChunk chunk = Instantiate(chunkPrefab, transform);
+        Transform parent = terrainChunkParent != null ? terrainChunkParent : transform;
+        CpuTerrainChunk chunk = Instantiate(chunkPrefab, parent);
 
         chunk.name = $"CPU_Terrain_Chunk_{chunkCoord.x}_{chunkCoord.y}_{chunkCoord.z}";
         chunk.Initialize(chunkCoord, cellCount, cellSize, seed, loadSavedChunk, worldName, noisePreset);
@@ -156,13 +247,39 @@ public class CpuTerrainChunkManager : MonoBehaviour {
     }
 
     private void ClearExistingChunks() {
+        List<CpuTerrainChunk> chunksToDestroy = new List<CpuTerrainChunk>();
+
         foreach (CpuTerrainChunk chunk in chunks.Values) {
-            if (chunk != null) {
-                Destroy(chunk.gameObject);
+            if (chunk != null && !chunksToDestroy.Contains(chunk)) {
+                chunksToDestroy.Add(chunk);
+            }
+        }
+
+        Transform searchRoot = terrainChunkParent != null ? terrainChunkParent : transform;
+        CpuTerrainChunk[] sceneChunks = searchRoot.GetComponentsInChildren<CpuTerrainChunk>(true);
+
+        for (int i = 0; i < sceneChunks.Length; i++) {
+            if (sceneChunks[i] != null && !chunksToDestroy.Contains(sceneChunks[i])) {
+                chunksToDestroy.Add(sceneChunks[i]);
             }
         }
 
         chunks.Clear();
+
+        for (int i = 0; i < chunksToDestroy.Count; i++) {
+            CpuTerrainChunk chunk = chunksToDestroy[i];
+
+            if (chunk == null) {
+                continue;
+            }
+
+            if (Application.isPlaying) {
+                Destroy(chunk.gameObject);
+            }
+            else {
+                DestroyImmediate(chunk.gameObject);
+            }
+        }
     }
 
     public CpuTerrainChunk GetChunk(Vector3Int chunkCoord) {

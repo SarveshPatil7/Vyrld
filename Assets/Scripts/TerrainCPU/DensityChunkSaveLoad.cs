@@ -1,5 +1,6 @@
 using System.IO;
 using UnityEngine;
+using System.Collections.Generic;
 
 public static class DensityChunkSaveLoad {
     private const int SaveVersion = 1;
@@ -131,6 +132,42 @@ public static class DensityChunkSaveLoad {
 
         string json = File.ReadAllText(path);
         return JsonUtility.FromJson<TerrainWorldSaveMetadata>(json);
+    }
+
+    public static List<Vector3Int> GetSavedChunkCoords(string worldName) {
+        List<Vector3Int> savedChunkCoords = new List<Vector3Int>();
+        string folder = Path.Combine(GetWorldFolder(worldName), DensityChunksFolderName);
+
+        if (!Directory.Exists(folder)) {
+            return savedChunkCoords;
+        }
+
+        string[] files = Directory.GetFiles(folder, "chunk_*_*_*.wokdensity");
+
+        for (int i = 0; i < files.Length; i++) {
+            string fileName = Path.GetFileNameWithoutExtension(files[i]);
+            string[] parts = fileName.Split('_');
+
+            if (parts.Length != 4) {
+                continue;
+            }
+
+            if (!int.TryParse(parts[1], out int x)) {
+                continue;
+            }
+
+            if (!int.TryParse(parts[2], out int y)) {
+                continue;
+            }
+
+            if (!int.TryParse(parts[3], out int z)) {
+                continue;
+            }
+
+            savedChunkCoords.Add(new Vector3Int(x, y, z));
+        }
+
+        return savedChunkCoords;
     }
 
     public static string GetWorldFolder(string worldName) {

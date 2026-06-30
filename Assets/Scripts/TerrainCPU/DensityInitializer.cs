@@ -25,7 +25,8 @@ public static class DensityInitializer {
         TerrainNoisePreset activePreset = noisePreset ?? TerrainNoisePreset.CreateDefault();
 
         float noise = EvaluateFractalHeightNoise(worldPos, activePreset);
-        float terrainHeight = activePreset.floorOffset + noise * activePreset.noiseWeight;
+        float centeredNoise = noise - 0.5f;
+        float terrainHeight = activePreset.floorOffset + centeredNoise * activePreset.noiseWeight;
         float density = (terrainHeight - worldPos.y) * activePreset.weightMultiplier;
 
         if (activePreset.hardFloorWeight > 0f) {
