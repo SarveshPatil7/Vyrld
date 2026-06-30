@@ -54,6 +54,9 @@ public class TerrainAuthoringTool : TerrainModeTool {
     [Header("Blend Regeneration")]
     [SerializeField] private KeyCode blendRegenerateKey = KeyCode.B;
 
+    [Header("Authoring Safety")]
+    [SerializeField] private bool requireShiftForDestructiveOperations = true;
+
     private TerrainChunkBoxVisual hoverBoxVisual;
     private readonly Dictionary<CpuTerrainChunk, TerrainChunkBoxVisual> selectedBoxVisuals = new();
 
@@ -263,11 +266,15 @@ public class TerrainAuthoringTool : TerrainModeTool {
         }
 
         if (Input.GetKeyDown(KeyCode.R)) {
-            ResetSelectedChunksToSeed();
+            if (CanRunDestructiveOperation("regenerate selected terrain columns")) {
+                ResetSelectedChunksToSeed();
+            }
         }
 
-        if (Input.GetKeyDown(KeyCode.B)) {
-            chunkManager.BlendRegenerateChunksWithNoisePreset(selectedChunks, activeNoisePresetIndex); ;
+        if (Input.GetKeyDown(blendRegenerateKey)) {
+            if (CanRunDestructiveOperation("stitch regenerate selected terrain")) {
+                BlendRegenerateSelectedChunks();
+            }
         }
     }
 
@@ -289,6 +296,32 @@ public class TerrainAuthoringTool : TerrainModeTool {
         chunkManager.ResetChunksWithNoisePreset(selectedChunks, activeNoisePresetIndex);
     }
 
+    private void BlendRegenerateSelectedChunks() {
+        if (selectedChunks.Count == 0) {
+            Debug.Log("No selected chunks to stitch regenerate.");
+            return;
+        }
+
+        chunkManager.BlendRegenerateChunksWithNoisePreset(selectedChunks, activeNoisePresetIndex);
+    }
+
+    private bool CanRunDestructiveOperation(string operationName) {
+        if (!requireShiftForDestructiveOperations) {
+            return true;
+        }
+
+        if (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift)) {
+            return true;
+        }
+
+        Debug.Log($"Hold Shift while pressing this key to {operationName}.");
+        return false;
+    }
+
+    private string GetDestructiveKeyPrefix() {
+        return requireShiftForDestructiveOperations ? "Shift + " : "";
+    }
+
     private void OnGUI() {
         if (!showAuthoringOverlay || !enabled) {
             return;
@@ -304,9 +337,10 @@ public class TerrainAuthoringTool : TerrainModeTool {
         GUILayout.Label("Shift + Left Click: Add/remove chunk");
         GUILayout.Label("C: Clear selection");
         GUILayout.Label("V: Save selected chunks");
-        GUILayout.Label("R: Regenerate selected columns with active noise preset");
+        GUILayout.Label($"{GetDestructiveKeyPrefix()}R: Regenerate selected columns with active noise preset");
         GUILayout.Label("G: Generate missing chunks around selected chunks");
-        GUILayout.Label("B: Blend regenerate selected area with boundary constraints");
+        GUILayout.Label($"{GetDestructiveKeyPrefix()}{blendRegenerateKey}: Experimental stitch regenerate selected area");
+        GUILayout.Label("Saved density chunks are the real authored world.");
         GUILayout.Label($"Active Noise Preset: {GetActiveNoisePresetDisplayName()}");
         GUILayout.Label("[ / ]: Cycle active noise preset");
         GUILayout.Label("X: Area select");
