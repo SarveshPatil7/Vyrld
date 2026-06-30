@@ -304,7 +304,7 @@ public class TerrainAuthoringTool : TerrainModeTool {
         GUILayout.Label("Shift + Left Click: Add/remove chunk");
         GUILayout.Label("C: Clear selection");
         GUILayout.Label("V: Save selected chunks");
-        GUILayout.Label("R: Regenerate selected chunks with active noise preset");
+        GUILayout.Label("R: Regenerate selected columns with active noise preset");
         GUILayout.Label("G: Generate missing chunks around selected chunks");
         GUILayout.Label("B: Blend regenerate selected area with boundary constraints");
         GUILayout.Label($"Active Noise Preset: {GetActiveNoisePresetDisplayName()}");

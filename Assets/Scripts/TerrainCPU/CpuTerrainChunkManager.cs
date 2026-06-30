@@ -84,6 +84,10 @@ public class CpuTerrainChunkManager : MonoBehaviour {
     [SerializeField] private int minGeneratedChunkY = -2;
     [SerializeField] private int maxGeneratedChunkY = 4;
 
+    [Header("Vertical Regeneration")]
+    [SerializeField] private int regeneratePaddingY = 2;
+    [SerializeField] private bool createMissingChunksDuringRegenerate = true;
+
     [Header("Blend Regeneration")]
     [SerializeField] private float blendBoundaryPower = 1f;
 
@@ -317,20 +321,61 @@ public class CpuTerrainChunkManager : MonoBehaviour {
         }
 
         TerrainNoisePreset noisePreset = GetNoisePresetByIndex(noisePresetIndex);
-        int resetCount = 0;
+
+        HashSet<Vector2Int> targetColumns = new HashSet<Vector2Int>();
+        int minSelectedY = int.MaxValue;
+        int maxSelectedY = int.MinValue;
 
         foreach (CpuTerrainChunk chunk in chunksToReset) {
             if (chunk == null) {
                 continue;
             }
 
-            chunk.SetNoisePreset(noisePreset, regenerate: true);
-            resetCount++;
+            Vector3Int chunkCoord = chunk.ChunkCoord;
+
+            targetColumns.Add(new Vector2Int(chunkCoord.x, chunkCoord.z));
+
+            minSelectedY = Mathf.Min(minSelectedY, chunkCoord.y);
+            maxSelectedY = Mathf.Max(maxSelectedY, chunkCoord.y);
+        }
+
+        if (targetColumns.Count == 0) {
+            Debug.Log("No valid selected chunks to reset.");
+            return;
+        }
+
+        int minY = Mathf.Max(GetMinGeneratedChunkY(), minSelectedY - regeneratePaddingY);
+        int maxY = Mathf.Min(GetMaxGeneratedChunkY(), maxSelectedY + regeneratePaddingY);
+
+        int resetCount = 0;
+        int createdCount = 0;
+
+        foreach (Vector2Int columnCoord in targetColumns) {
+            for (int y = minY; y <= maxY; y++) {
+                Vector3Int chunkCoord = new Vector3Int(columnCoord.x, y, columnCoord.y);
+
+                CpuTerrainChunk chunk = GetChunk(chunkCoord);
+
+                if (chunk == null && createMissingChunksDuringRegenerate) {
+                    chunk = CreateChunk(chunkCoord, noisePresetIndex, loadSavedChunk: false);
+
+                    if (chunk != null) {
+                        createdCount++;
+                    }
+                }
+
+                if (chunk == null) {
+                    continue;
+                }
+
+                chunk.SetNoisePreset(noisePreset, regenerate: true);
+                resetCount++;
+            }
         }
 
         ClearUndoHistory();
 
-        Debug.Log($"Reset {resetCount} selected CPU terrain chunks using noise preset {noisePreset.GetDisplayName()}.");
+        Debug.Log($"Regenerated {resetCount} chunks across {targetColumns.Count} selected columns using noise preset {noisePreset.GetDisplayName()}. Created {createdCount} missing chunks. Y range: {minY} to {maxY}.");
     }
 
     public void BlendRegenerateChunksWithNoisePreset(IEnumerable<CpuTerrainChunk> chunksToBlend, int noisePresetIndex) {
