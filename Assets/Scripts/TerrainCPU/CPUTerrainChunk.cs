@@ -30,10 +30,12 @@ public class CpuTerrainChunk : MonoBehaviour {
     [SerializeField] private TerrainNoisePreset noisePreset;
 
     private MeshFilter meshFilter;
+    private MeshRenderer meshRenderer;
     private MeshCollider meshCollider;
     private DensityChunkData densityData;
     public Vector3Int ChunkCoord => chunkCoord;
     public DensityChunkData DensityData => densityData;
+    public TerrainChunkDensityState DensityState { get; private set; } = TerrainChunkDensityState.Dense;
     public string NoisePresetName => noisePreset != null ? noisePreset.presetName : "None";
 
     private void Awake() {
@@ -69,20 +71,100 @@ public class CpuTerrainChunk : MonoBehaviour {
             return;
         }
 
-        if (meshFilter == null || meshCollider == null) {
-            Debug.LogError($"Cannot rebuild mesh for chunk {chunkCoord}. MeshFilter or MeshCollider is missing.");
+        if (meshFilter == null || meshRenderer == null || meshCollider == null) {
+            Debug.LogError($"Cannot rebuild mesh for chunk {chunkCoord}. MeshFilter, MeshRenderer, or MeshCollider is missing.");
+            return;
+        }
+
+        DensityState = EvaluateDensityState();
+
+        if (DensityState != TerrainChunkDensityState.Dense) {
+            ClearChunkMesh();
             return;
         }
 
         Mesh mesh = MarchingCubesMesher.GenerateMesh(densityData);
         mesh.name = $"CPU_Terrain_Chunk_{chunkCoord.x}_{chunkCoord.y}_{chunkCoord.z}";
 
+        if (mesh.vertexCount == 0) {
+            ClearChunkMesh();
+            DensityState = TerrainChunkDensityState.Air;
+            return;
+        }
+
         meshFilter.sharedMesh = mesh;
 
         meshCollider.sharedMesh = null;
         meshCollider.sharedMesh = mesh;
 
-        Debug.Log($"Rebuilt mesh for chunk {chunkCoord}. Vertices: {mesh.vertexCount}. Triangles: {mesh.triangles.Length / 3}");
+        meshRenderer.enabled = true;
+        meshCollider.enabled = true;
+    }
+
+    private TerrainChunkDensityState EvaluateDensityState() {
+        const float epsilon = 0.0001f;
+
+        bool hasAir = false;
+        bool hasSolid = false;
+
+        for (int x = 0; x < densityData.sampleCount; x++) {
+            for (int y = 0; y < densityData.sampleCount; y++) {
+                for (int z = 0; z < densityData.sampleCount; z++) {
+                    float density = densityData.Get(x, y, z);
+
+                    if (density < -epsilon) {
+                        hasAir = true;
+                    }
+
+                    if (density > epsilon) {
+                        hasSolid = true;
+                    }
+
+                    if (hasAir && hasSolid) {
+                        return TerrainChunkDensityState.Dense;
+                    }
+                }
+            }
+        }
+
+        if (hasSolid) {
+            return TerrainChunkDensityState.Filled;
+        }
+
+        if (hasAir) {
+            return TerrainChunkDensityState.Air;
+        }
+
+        return TerrainChunkDensityState.Dense;
+    }
+
+    private void ClearChunkMesh() {
+        if (meshFilter != null) {
+            meshFilter.sharedMesh = null;
+        }
+
+        if (meshCollider != null) {
+            meshCollider.sharedMesh = null;
+            meshCollider.enabled = false;
+        }
+
+        if (meshRenderer != null) {
+            meshRenderer.enabled = false;
+        }
+    }
+
+    public void SetChunkRuntimeVisibility(bool visible, bool colliderEnabled) {
+        EnsureComponents();
+
+        bool hasSurfaceMesh = DensityState == TerrainChunkDensityState.Dense && meshFilter != null && meshFilter.sharedMesh != null && meshFilter.sharedMesh.vertexCount > 0;
+
+        if (meshRenderer != null) {
+            meshRenderer.enabled = visible && hasSurfaceMesh;
+        }
+
+        if (meshCollider != null) {
+            meshCollider.enabled = colliderEnabled && hasSurfaceMesh;
+        }
     }
 
     private void UpdateChunkTransformPosition() {
@@ -297,6 +379,10 @@ public class CpuTerrainChunk : MonoBehaviour {
     private void EnsureComponents() {
         if (meshFilter == null) {
             meshFilter = GetComponent<MeshFilter>();
+        }
+
+        if (meshRenderer == null) {
+            meshRenderer = GetComponent<MeshRenderer>();
         }
 
         if (meshCollider == null) {

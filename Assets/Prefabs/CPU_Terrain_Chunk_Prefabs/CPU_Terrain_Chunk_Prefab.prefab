@@ -126,12 +126,30 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9d07b5d24f2772646a13d289c95468c2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CpuTerrainChunk
+  worldName: DevWorld
   chunkCoord: {x: 0, y: 0, z: 0}
   cellCount: 16
   cellSize: 1
   seed: 12345
   generateOnStart: 0
   logDensityRange: 1
-  showChunkBounds: 1
-  showChunkLabel: 1
+  showChunkBounds: 0
+  showChunkLabel: 0
   chunkBoundsColor: {r: 0.3018868, g: 0.3018868, b: 0.3018868, a: 0.12156863}
+  noisePreset:
+    presetName: Default
+    noiseMode: 0
+    seed: 12345
+    numOctaves: 4
+    lacunarity: 2
+    persistence: 0.5
+    noiseScale: 24
+    noiseWeight: 8
+    closeEdges: 0
+    floorOffset: 8
+    weightMultiplier: 1
+    verticalNoiseScaleMultiplier: 1
+    densityOffset: 0
+    hardFloorHeight: -32
+    hardFloorWeight: 0
+    shaderParams: {x: 0, y: 0, z: 0, w: 0}

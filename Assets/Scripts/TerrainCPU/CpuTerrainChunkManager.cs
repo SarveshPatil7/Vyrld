@@ -101,6 +101,18 @@ public class CpuTerrainChunkManager : MonoBehaviour {
     [Header("Scene Hierarchy")]
     [SerializeField] private Transform terrainChunkParent;
 
+    [Header("Chunk View Distance")]
+    [SerializeField] private bool useViewDistance = true;
+    [SerializeField] private Transform viewCenter;
+    [SerializeField] private int viewDistance = 4;
+    [SerializeField] private int verticalViewDistance = 1;
+    [SerializeField] private int colliderDistance = 2;
+    [SerializeField] private int verticalColliderDistance = 1;
+    [SerializeField] private bool refreshViewDistanceInPlayMode = true;
+    [SerializeField] private float viewDistanceRefreshInterval = 0.25f;
+
+    private float nextViewDistanceRefreshTime;
+
     private class TerrainStitchSample {
     public Vector3Int globalSampleCoord;
     public Vector3 worldPosition;
@@ -117,12 +129,30 @@ public class CpuTerrainChunkManager : MonoBehaviour {
     private void Start() {
         if (generateChunksOnStart) {
             GenerateTestChunks();
+            RefreshChunkVisibility();
             return;
         }
 
         RegisterExistingSceneChunks(loadRegisteredSceneChunksOnStart);
+        RefreshChunkVisibility();
     }
 
+    private void Update() {
+        if (!Application.isPlaying) {
+            return;
+        }
+
+        if (!refreshViewDistanceInPlayMode) {
+            return;
+        }
+
+        if (Time.time < nextViewDistanceRefreshTime) {
+            return;
+        }
+
+        nextViewDistanceRefreshTime = Time.time + Mathf.Max(0.05f, viewDistanceRefreshInterval);
+        RefreshChunkVisibility();
+    }
     public void GenerateTestChunks() {
         ClearExistingChunks();
 
@@ -156,6 +186,7 @@ public class CpuTerrainChunkManager : MonoBehaviour {
         }
 
         RegisterExistingSceneChunksForEditing();
+        RefreshChunkVisibility();
 
         Debug.Log($"Generated base terrain grid into scene. Created {createdCount} chunks. Registered {chunks.Count} chunks. Radius: {radiusX}, {radiusY}, {radiusZ}");
     }
@@ -169,11 +200,14 @@ public class CpuTerrainChunkManager : MonoBehaviour {
             CreateChunk(savedChunkCoords[i], defaultNoisePresetIndex, loadSavedChunk: true);
         }
 
+        RefreshChunkVisibility();
+
         Debug.Log($"Loaded {chunks.Count} saved terrain chunks into scene for world: {worldName}");
     }
 
     public void RegisterExistingSceneChunksForEditing() {
         RegisterExistingSceneChunks(false);
+        RefreshChunkVisibility();
         Debug.Log($"Registered {chunks.Count} existing terrain chunks in scene.");
     }
 
@@ -368,6 +402,8 @@ public class CpuTerrainChunkManager : MonoBehaviour {
             }
         }
 
+        RefreshChunkVisibility();
+
         Debug.Log($"Generated {createdChunks.Count} missing vertical chunks across {targetColumns.Count} columns using noise preset {GetNoisePresetDisplayName(noisePresetIndex)}.");
         return createdChunks;
     }
@@ -502,6 +538,7 @@ public class CpuTerrainChunkManager : MonoBehaviour {
             }
         }
 
+        RefreshChunkVisibility();
         ClearUndoHistory();
 
         Debug.Log($"Regenerated {resetCount} chunks across {targetColumns.Count} selected columns using noise preset {noisePreset.GetDisplayName()}. Created {createdCount} missing chunks. Y range: {minY} to {maxY}.");
@@ -552,6 +589,7 @@ public class CpuTerrainChunkManager : MonoBehaviour {
             selectedChunkList[i].RebuildMesh();
         }
 
+        RefreshChunkVisibility();
         ClearUndoHistory();
 
         Debug.Log($"Stitch regenerated {selectedChunkList.Count} chunks using noise preset {noisePreset.GetDisplayName()}. Boundary constraints: {boundaryConstraintCount}. Iterations: {stitchIterations}. Noise influence: {stitchNoiseInfluence}.");
@@ -577,6 +615,8 @@ public class CpuTerrainChunkManager : MonoBehaviour {
         for (int i = 0; i < editedChunks.Count; i++) {
             editedChunks[i].RebuildMesh();
         }
+
+        RefreshChunkVisibility();
     }
 
     private CpuTerrainBrushContext BuildBrushContext(Vector3 worldCenter, float radius, CpuTerrainBrushType brushType, CpuTerrainFlattenMode flattenMode) {
@@ -958,7 +998,6 @@ public class CpuTerrainChunkManager : MonoBehaviour {
         return Mathf.Max(minGeneratedChunkY, maxGeneratedChunkY);
     }
 
-
     private void BuildStitchSampleMap(List<CpuTerrainChunk> selectedChunkList, TerrainNoisePreset noisePreset, Dictionary<Vector3Int, TerrainStitchSample> sampleByGlobalCoord) {
         for (int i = 0; i < selectedChunkList.Count; i++) {
             CpuTerrainChunk chunk = selectedChunkList[i];
@@ -1183,5 +1222,58 @@ public class CpuTerrainChunkManager : MonoBehaviour {
 
     private Vector3 GlobalSampleToWorldPosition(Vector3Int globalSampleCoord) {
         return new Vector3(globalSampleCoord.x * cellSize, globalSampleCoord.y * cellSize, globalSampleCoord.z * cellSize);
+    }
+
+    public void RefreshChunkVisibility() {
+        Vector3 centerPosition = GetViewCenterPosition();
+        Vector3Int centerChunkCoord = WorldToChunkCoord(centerPosition);
+
+        int visibleCount = 0;
+        int colliderCount = 0;
+
+        foreach (CpuTerrainChunk chunk in chunks.Values) {
+            if (chunk == null) {
+                continue;
+            }
+
+            Vector3Int chunkCoord = chunk.ChunkCoord;
+
+            bool visible = !useViewDistance || IsChunkWithinDistance(chunkCoord, centerChunkCoord, viewDistance, verticalViewDistance);
+            bool colliderEnabled = visible && (!useViewDistance || IsChunkWithinDistance(chunkCoord, centerChunkCoord, colliderDistance, verticalColliderDistance));
+
+            chunk.SetChunkRuntimeVisibility(visible, colliderEnabled);
+
+            if (visible) {
+                visibleCount++;
+            }
+
+            if (colliderEnabled) {
+                colliderCount++;
+            }
+        }
+
+        //Debug.Log($"Refreshed terrain chunk visibility. Visible chunks: {visibleCount}. Collider chunks: {colliderCount}. Center chunk: {centerChunkCoord}.");
+    }
+
+    private Vector3 GetViewCenterPosition() {
+        if (viewCenter != null) {
+            return viewCenter.position;
+        }
+
+        Camera mainCamera = Camera.main;
+
+        if (mainCamera != null) {
+            return mainCamera.transform.position;
+        }
+
+        return Vector3.zero;
+    }
+
+    private bool IsChunkWithinDistance(Vector3Int chunkCoord, Vector3Int centerChunkCoord, int horizontalDistance, int verticalDistance) {
+        int dx = Mathf.Abs(chunkCoord.x - centerChunkCoord.x);
+        int dy = Mathf.Abs(chunkCoord.y - centerChunkCoord.y);
+        int dz = Mathf.Abs(chunkCoord.z - centerChunkCoord.z);
+
+        return dx <= horizontalDistance && dy <= verticalDistance && dz <= horizontalDistance;
     }
 }
