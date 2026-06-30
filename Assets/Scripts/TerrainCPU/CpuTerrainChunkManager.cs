@@ -84,6 +84,9 @@ public class CpuTerrainChunkManager : MonoBehaviour {
     [SerializeField] private int minGeneratedChunkY = -2;
     [SerializeField] private int maxGeneratedChunkY = 4;
 
+    [Header("Blend Regeneration")]
+    [SerializeField] private float blendBoundaryPower = 1f;
+
     private TerrainEditUndoSystem undoSystem;
 
     private readonly Dictionary<Vector3Int, CpuTerrainChunk> chunks = new();
@@ -328,6 +331,105 @@ public class CpuTerrainChunkManager : MonoBehaviour {
         ClearUndoHistory();
 
         Debug.Log($"Reset {resetCount} selected CPU terrain chunks using noise preset {noisePreset.GetDisplayName()}.");
+    }
+
+    public void BlendRegenerateChunksWithNoisePreset(IEnumerable<CpuTerrainChunk> chunksToBlend, int noisePresetIndex) {
+        if (chunksToBlend == null) {
+            Debug.LogWarning("Cannot blend regenerate chunks. Chunk collection is null.");
+            return;
+        }
+
+        TerrainNoisePreset noisePreset = GetNoisePresetByIndex(noisePresetIndex);
+        List<CpuTerrainChunk> selectedChunkList = new List<CpuTerrainChunk>();
+        HashSet<Vector3Int> selectedChunkCoords = new HashSet<Vector3Int>();
+
+        Vector3Int minChunkCoord = new Vector3Int(int.MaxValue, int.MaxValue, int.MaxValue);
+        Vector3Int maxChunkCoord = new Vector3Int(int.MinValue, int.MinValue, int.MinValue);
+
+        foreach (CpuTerrainChunk chunk in chunksToBlend) {
+            if (chunk == null || chunk.DensityData == null) {
+                continue;
+            }
+
+            if (!selectedChunkCoords.Add(chunk.ChunkCoord)) {
+                continue;
+            }
+
+            selectedChunkList.Add(chunk);
+
+            minChunkCoord = new Vector3Int(Mathf.Min(minChunkCoord.x, chunk.ChunkCoord.x), Mathf.Min(minChunkCoord.y, chunk.ChunkCoord.y), Mathf.Min(minChunkCoord.z, chunk.ChunkCoord.z));
+            maxChunkCoord = new Vector3Int(Mathf.Max(maxChunkCoord.x, chunk.ChunkCoord.x), Mathf.Max(maxChunkCoord.y, chunk.ChunkCoord.y), Mathf.Max(maxChunkCoord.z, chunk.ChunkCoord.z));
+        }
+
+        if (selectedChunkList.Count == 0) {
+            Debug.Log("No valid selected chunks to blend regenerate.");
+            return;
+        }
+
+        Vector3Int minSampleCoord = new Vector3Int(minChunkCoord.x * cellCount, minChunkCoord.y * cellCount, minChunkCoord.z * cellCount);
+        Vector3Int maxSampleCoord = new Vector3Int((maxChunkCoord.x + 1) * cellCount, (maxChunkCoord.y + 1) * cellCount, (maxChunkCoord.z + 1) * cellCount);
+
+        Dictionary<Vector3Int, float> boundaryDeltaByGlobalSample = new Dictionary<Vector3Int, float>();
+        Dictionary<Vector3Int, float> generatedDensityByGlobalSample = new Dictionary<Vector3Int, float>();
+
+        for (int i = 0; i < selectedChunkList.Count; i++) {
+            CpuTerrainChunk chunk = selectedChunkList[i];
+            DensityChunkData densityData = chunk.DensityData;
+
+            for (int x = 0; x < densityData.sampleCount; x++) {
+                for (int y = 0; y < densityData.sampleCount; y++) {
+                    for (int z = 0; z < densityData.sampleCount; z++) {
+                        Vector3Int globalSampleCoord = GetGlobalSampleCoord(chunk.ChunkCoord, x, y, z);
+
+                        if (!IsOnSelectedVolumeBoundary(globalSampleCoord, minSampleCoord, maxSampleCoord)) {
+                            continue;
+                        }
+
+                        if (boundaryDeltaByGlobalSample.ContainsKey(globalSampleCoord)) {
+                            continue;
+                        }
+
+                        Vector3 sampleWorldPosition = GlobalSampleToWorldPosition(globalSampleCoord);
+                        float presetDensity = DensityInitializer.EvaluateDensity(sampleWorldPosition, noisePreset);
+                        float boundaryDensity = GetBoundaryDensityForSelectedVolumeSample(chunk, x, y, z, globalSampleCoord, minSampleCoord, maxSampleCoord, selectedChunkCoords);
+
+                        boundaryDeltaByGlobalSample.Add(globalSampleCoord, boundaryDensity - presetDensity);
+                    }
+                }
+            }
+        }
+
+        for (int i = 0; i < selectedChunkList.Count; i++) {
+            CpuTerrainChunk chunk = selectedChunkList[i];
+            DensityChunkData densityData = chunk.DensityData;
+
+            for (int x = 0; x < densityData.sampleCount; x++) {
+                for (int y = 0; y < densityData.sampleCount; y++) {
+                    for (int z = 0; z < densityData.sampleCount; z++) {
+                        Vector3Int globalSampleCoord = GetGlobalSampleCoord(chunk.ChunkCoord, x, y, z);
+
+                        if (!generatedDensityByGlobalSample.TryGetValue(globalSampleCoord, out float generatedDensity)) {
+                            Vector3 sampleWorldPosition = GlobalSampleToWorldPosition(globalSampleCoord);
+                            float presetDensity = DensityInitializer.EvaluateDensity(sampleWorldPosition, noisePreset);
+                            float boundaryDelta = EvaluateInterpolatedBoundaryDelta(globalSampleCoord, minSampleCoord, maxSampleCoord, boundaryDeltaByGlobalSample);
+
+                            generatedDensity = presetDensity + boundaryDelta;
+                            generatedDensityByGlobalSample.Add(globalSampleCoord, generatedDensity);
+                        }
+
+                        densityData.Set(x, y, z, generatedDensity);
+                    }
+                }
+            }
+        }
+
+        for (int i = 0; i < selectedChunkList.Count; i++) {
+            selectedChunkList[i].RebuildMesh();
+        }
+
+        ClearUndoHistory();
+
+        Debug.Log($"Blend regenerated {selectedChunkList.Count} chunks using noise preset {noisePreset.GetDisplayName()} with {boundaryDeltaByGlobalSample.Count} boundary samples.");
     }
 
     public void ApplyBrushEdit(Vector3 worldCenter, float radius, float strength, CpuTerrainBrushType brushType, CpuTerrainFlattenMode flattenMode, float roughnessScale, float roughnessAmount) {
@@ -729,5 +831,126 @@ public class CpuTerrainChunkManager : MonoBehaviour {
 
     private int GetMaxGeneratedChunkY() {
         return Mathf.Max(minGeneratedChunkY, maxGeneratedChunkY);
+    }
+
+    private Vector3Int GetGlobalSampleCoord(Vector3Int chunkCoord, int sampleX, int sampleY, int sampleZ) {
+        return new Vector3Int(chunkCoord.x * cellCount + sampleX, chunkCoord.y * cellCount + sampleY, chunkCoord.z * cellCount + sampleZ);
+    }
+
+    private Vector3 GlobalSampleToWorldPosition(Vector3Int globalSampleCoord) {
+        return new Vector3(globalSampleCoord.x * cellSize, globalSampleCoord.y * cellSize, globalSampleCoord.z * cellSize);
+    }
+
+    private bool IsOnSelectedVolumeBoundary(Vector3Int globalSampleCoord, Vector3Int minSampleCoord, Vector3Int maxSampleCoord) {
+        return globalSampleCoord.x == minSampleCoord.x || globalSampleCoord.x == maxSampleCoord.x || globalSampleCoord.y == minSampleCoord.y || globalSampleCoord.y == maxSampleCoord.y || globalSampleCoord.z == minSampleCoord.z || globalSampleCoord.z == maxSampleCoord.z;
+    }
+
+    private float GetBoundaryDensityForSelectedVolumeSample(CpuTerrainChunk sourceChunk, int localX, int localY, int localZ, Vector3Int globalSampleCoord, Vector3Int minSampleCoord, Vector3Int maxSampleCoord, HashSet<Vector3Int> selectedChunkCoords) {
+        float exteriorDensitySum = 0f;
+        int exteriorDensityCount = 0;
+
+        if (globalSampleCoord.x == minSampleCoord.x) {
+            TryAddExteriorBoundaryDensity(sourceChunk.ChunkCoord + Vector3Int.left, selectedChunkCoords, cellCount, localY, localZ, ref exteriorDensitySum, ref exteriorDensityCount);
+        }
+
+        if (globalSampleCoord.x == maxSampleCoord.x) {
+            TryAddExteriorBoundaryDensity(sourceChunk.ChunkCoord + Vector3Int.right, selectedChunkCoords, 0, localY, localZ, ref exteriorDensitySum, ref exteriorDensityCount);
+        }
+
+        if (globalSampleCoord.y == minSampleCoord.y) {
+            TryAddExteriorBoundaryDensity(sourceChunk.ChunkCoord + Vector3Int.down, selectedChunkCoords, localX, cellCount, localZ, ref exteriorDensitySum, ref exteriorDensityCount);
+        }
+
+        if (globalSampleCoord.y == maxSampleCoord.y) {
+            TryAddExteriorBoundaryDensity(sourceChunk.ChunkCoord + Vector3Int.up, selectedChunkCoords, localX, 0, localZ, ref exteriorDensitySum, ref exteriorDensityCount);
+        }
+
+        if (globalSampleCoord.z == minSampleCoord.z) {
+            TryAddExteriorBoundaryDensity(sourceChunk.ChunkCoord + new Vector3Int(0, 0, -1), selectedChunkCoords, localX, localY, cellCount, ref exteriorDensitySum, ref exteriorDensityCount);
+        }
+
+        if (globalSampleCoord.z == maxSampleCoord.z) {
+            TryAddExteriorBoundaryDensity(sourceChunk.ChunkCoord + new Vector3Int(0, 0, 1), selectedChunkCoords, localX, localY, 0, ref exteriorDensitySum, ref exteriorDensityCount);
+        }
+
+        if (exteriorDensityCount > 0) {
+            return exteriorDensitySum / exteriorDensityCount;
+        }
+
+        return sourceChunk.DensityData.Get(localX, localY, localZ);
+    }
+
+    private void TryAddExteriorBoundaryDensity(Vector3Int exteriorChunkCoord, HashSet<Vector3Int> selectedChunkCoords, int sampleX, int sampleY, int sampleZ, ref float densitySum, ref int densityCount) {
+        if (selectedChunkCoords.Contains(exteriorChunkCoord)) {
+            return;
+        }
+
+        if (!chunks.TryGetValue(exteriorChunkCoord, out CpuTerrainChunk exteriorChunk)) {
+            return;
+        }
+
+        if (exteriorChunk == null || exteriorChunk.DensityData == null) {
+            return;
+        }
+
+        DensityChunkData exteriorDensityData = exteriorChunk.DensityData;
+
+        if (sampleX < 0 || sampleX >= exteriorDensityData.sampleCount || sampleY < 0 || sampleY >= exteriorDensityData.sampleCount || sampleZ < 0 || sampleZ >= exteriorDensityData.sampleCount) {
+            return;
+        }
+
+        densitySum += exteriorDensityData.Get(sampleX, sampleY, sampleZ);
+        densityCount++;
+    }
+
+    private float EvaluateInterpolatedBoundaryDelta(Vector3Int globalSampleCoord, Vector3Int minSampleCoord, Vector3Int maxSampleCoord, Dictionary<Vector3Int, float> boundaryDeltaByGlobalSample) {
+        if (boundaryDeltaByGlobalSample.TryGetValue(globalSampleCoord, out float exactBoundaryDelta)) {
+            return exactBoundaryDelta;
+        }
+
+        float weightedDeltaSum = 0f;
+        float weightSum = 0f;
+
+        AddProjectedBoundaryDelta(new Vector3Int(minSampleCoord.x, globalSampleCoord.y, globalSampleCoord.z), Mathf.Abs(globalSampleCoord.x - minSampleCoord.x), Mathf.Abs(maxSampleCoord.x - minSampleCoord.x), boundaryDeltaByGlobalSample, ref weightedDeltaSum, ref weightSum);
+        AddProjectedBoundaryDelta(new Vector3Int(maxSampleCoord.x, globalSampleCoord.y, globalSampleCoord.z), Mathf.Abs(maxSampleCoord.x - globalSampleCoord.x), Mathf.Abs(maxSampleCoord.x - minSampleCoord.x), boundaryDeltaByGlobalSample, ref weightedDeltaSum, ref weightSum);
+
+        AddProjectedBoundaryDelta(new Vector3Int(globalSampleCoord.x, minSampleCoord.y, globalSampleCoord.z), Mathf.Abs(globalSampleCoord.y - minSampleCoord.y), Mathf.Abs(maxSampleCoord.y - minSampleCoord.y), boundaryDeltaByGlobalSample, ref weightedDeltaSum, ref weightSum);
+        AddProjectedBoundaryDelta(new Vector3Int(globalSampleCoord.x, maxSampleCoord.y, globalSampleCoord.z), Mathf.Abs(maxSampleCoord.y - globalSampleCoord.y), Mathf.Abs(maxSampleCoord.y - minSampleCoord.y), boundaryDeltaByGlobalSample, ref weightedDeltaSum, ref weightSum);
+
+        AddProjectedBoundaryDelta(new Vector3Int(globalSampleCoord.x, globalSampleCoord.y, minSampleCoord.z), Mathf.Abs(globalSampleCoord.z - minSampleCoord.z), Mathf.Abs(maxSampleCoord.z - minSampleCoord.z), boundaryDeltaByGlobalSample, ref weightedDeltaSum, ref weightSum);
+        AddProjectedBoundaryDelta(new Vector3Int(globalSampleCoord.x, globalSampleCoord.y, maxSampleCoord.z), Mathf.Abs(maxSampleCoord.z - globalSampleCoord.z), Mathf.Abs(maxSampleCoord.z - minSampleCoord.z), boundaryDeltaByGlobalSample, ref weightedDeltaSum, ref weightSum);
+
+        if (weightSum <= 0.0001f) {
+            return 0f;
+        }
+
+        return weightedDeltaSum / weightSum;
+    }
+
+    private void AddProjectedBoundaryDelta(Vector3Int projectedBoundarySampleCoord, int distanceFromBoundary, int totalSampleDistance, Dictionary<Vector3Int, float> boundaryDeltaByGlobalSample, ref float weightedDeltaSum, ref float weightSum) {
+        if (!boundaryDeltaByGlobalSample.TryGetValue(projectedBoundarySampleCoord, out float boundaryDelta)) {
+            return;
+        }
+
+        float weight = CalculateBoundaryBlendWeight(distanceFromBoundary, totalSampleDistance);
+
+        if (weight <= 0.0001f) {
+            return;
+        }
+
+        weightedDeltaSum += boundaryDelta * weight;
+        weightSum += weight;
+    }
+
+    private float CalculateBoundaryBlendWeight(int distanceFromBoundary, int totalSampleDistance) {
+        if (totalSampleDistance <= 0) {
+            return 1f;
+        }
+
+        float normalizedDistance = Mathf.Clamp01(distanceFromBoundary / (float) totalSampleDistance);
+        float baseWeight = 1f - normalizedDistance;
+        float safePower = Mathf.Max(0.01f, blendBoundaryPower);
+
+        return Mathf.Pow(baseWeight, safePower);
     }
 }

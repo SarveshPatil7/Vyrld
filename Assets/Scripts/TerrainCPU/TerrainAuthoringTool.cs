@@ -51,6 +51,9 @@ public class TerrainAuthoringTool : TerrainModeTool {
     [SerializeField] private KeyCode nextNoisePresetKey = KeyCode.RightBracket;
     [SerializeField] private int activeNoisePresetIndex = 0;
 
+    [Header("Blend Regeneration")]
+    [SerializeField] private KeyCode blendRegenerateKey = KeyCode.B;
+
     private TerrainChunkBoxVisual hoverBoxVisual;
     private readonly Dictionary<CpuTerrainChunk, TerrainChunkBoxVisual> selectedBoxVisuals = new();
 
@@ -262,6 +265,10 @@ public class TerrainAuthoringTool : TerrainModeTool {
         if (Input.GetKeyDown(KeyCode.R)) {
             ResetSelectedChunksToSeed();
         }
+
+        if (Input.GetKeyDown(KeyCode.B)) {
+            chunkManager.BlendRegenerateChunksWithNoisePreset(selectedChunks, activeNoisePresetIndex); ;
+        }
     }
 
     private void SaveSelectedChunks() {
@@ -299,6 +306,7 @@ public class TerrainAuthoringTool : TerrainModeTool {
         GUILayout.Label("V: Save selected chunks");
         GUILayout.Label("R: Regenerate selected chunks with active noise preset");
         GUILayout.Label("G: Generate missing chunks around selected chunks");
+        GUILayout.Label("B: Blend regenerate selected area with boundary constraints");
         GUILayout.Label($"Active Noise Preset: {GetActiveNoisePresetDisplayName()}");
         GUILayout.Label("[ / ]: Cycle active noise preset");
         GUILayout.Label("X: Area select");
