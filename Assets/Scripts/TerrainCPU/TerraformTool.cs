@@ -91,7 +91,7 @@ public class TerraformTool : TerrainModeTool {
 
         HandleUndoControls();
 
-        if (Input.GetKeyDown(KeyCode.S)) {
+        if (Input.GetKeyDown(KeyCode.S) && IsShiftHeld()) {
             chunkManager.SaveAllChunks();
         }
 
@@ -102,6 +102,10 @@ public class TerraformTool : TerrainModeTool {
         if (Input.GetKeyDown(KeyCode.R)) {
             chunkManager.ResetAllChunksToSeed();
         }
+    }
+
+    private bool IsShiftHeld() {
+        return Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
     }
 
     private void HandleBrushSwitchingControls() {

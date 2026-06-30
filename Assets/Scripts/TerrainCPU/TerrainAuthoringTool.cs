@@ -12,6 +12,8 @@ public class TerrainAuthoringTool : TerrainModeTool {
     [SerializeField] private float fastMoveMultiplier = 4f;
     [SerializeField] private float verticalMoveSpeed = 15f;
 
+    [SerializeField] private bool useInternalFreecamControls = false;
+
     [Header("Look")]
     [SerializeField] private float lookSensitivity = 2f;
     [SerializeField] private bool holdRightMouseToLook = true;
@@ -90,8 +92,11 @@ public class TerrainAuthoringTool : TerrainModeTool {
             return;
         }
 
-        HandleLook();
-        HandleMovement();
+        if (useInternalFreecamControls) {
+            HandleLook();
+            HandleMovement();
+        }
+
         HandleChunkExpansion();
         UpdateHoveredChunk();
 
