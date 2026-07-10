@@ -3,22 +3,26 @@ using UnityEngine;
 public class PlaytestModeTool : TerrainModeTool {
     public override TerrainInteractionMode Mode => TerrainInteractionMode.Playtest;
 
-    [Header("Player")]
-    [SerializeField] private SimpleCapsulePlayerController playerController;
+    [Header("Player Rig")]
+    [SerializeField] private VyrldPlayerControllerRig playerRig;
+
+    [Header("Start Mode")]
+    [SerializeField] private PlayerControllerMode startingControllerMode = PlayerControllerMode.Grounded;
+    [SerializeField] private bool allowControllerSwitching = true;
 
     public override void EnterMode() {
         base.EnterMode();
 
-        if (playerController != null) {
-            playerController.enabled = true;
+        if (playerRig != null) {
+            playerRig.EnableRig(startingControllerMode, allowControllerSwitching);
         }
 
         Debug.Log("Entered Playtest mode.");
     }
 
     public override void ExitMode() {
-        if (playerController != null) {
-            playerController.enabled = false;
+        if (playerRig != null) {
+            playerRig.DisableRig();
         }
 
         Debug.Log("Exited Playtest mode.");

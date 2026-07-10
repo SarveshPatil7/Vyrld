@@ -43,6 +43,28 @@ mono_crash.*
 Thumbs.db
 desktop.ini
 
+# Large local-only art/source assets
+[Aa]ssets/**/*.fbx
+[Aa]ssets/**/*.fbx.meta
+[Aa]ssets/**/*.blend
+[Aa]ssets/**/*.blend.meta
+[Aa]ssets/**/*.blend1
+[Aa]ssets/**/*.blend1.meta
+[Aa]ssets/**/*.psd
+[Aa]ssets/**/*.psd.meta
+[Aa]ssets/**/*.tga
+[Aa]ssets/**/*.tga.meta
+[Aa]ssets/**/*.exr
+[Aa]ssets/**/*.exr.meta
+[Aa]ssets/**/*.mp4
+[Aa]ssets/**/*.mp4.meta
+[Aa]ssets/**/*.mov
+[Aa]ssets/**/*.mov.meta
+[Aa]ssets/**/*.wav
+[Aa]ssets/**/*.wav.meta
+[Aa]ssets/**/*.mp3
+[Aa]ssets/**/*.mp3.meta
+
 # Blender backup files
 *.blend1
 *.blend1.meta
