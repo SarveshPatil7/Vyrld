@@ -10,8 +10,10 @@ public abstract class DensityGenerator : MonoBehaviour {
     protected List<ComputeBuffer> buffersToRelease;
 
     void OnValidate() {
-        if (FindObjectOfType<MeshGenerator>()) {
-            FindObjectOfType<MeshGenerator>().RequestMeshUpdate();
+        MeshGenerator meshGenerator = FindAnyObjectByType<MeshGenerator>();
+
+        if (meshGenerator != null) {
+            meshGenerator.RequestMeshUpdate();
         }
     }
 

@@ -54,7 +54,7 @@ public class MeshGenerator : MonoBehaviour {
         if (Application.isPlaying && !fixedMapSize) {
             InitVariableChunkStructures ();
 
-            var oldChunks = FindObjectsOfType<Chunk> ();
+            var oldChunks = FindObjectsByType<Chunk>();
             for (int i = oldChunks.Length - 1; i >= 0; i--) {
                 Destroy (oldChunks[i].gameObject);
             }
@@ -298,7 +298,7 @@ public class MeshGenerator : MonoBehaviour {
     void InitChunks () {
         CreateChunkHolder ();
         chunks = new List<Chunk> ();
-        List<Chunk> oldChunks = new List<Chunk> (FindObjectsOfType<Chunk> ());
+        List<Chunk> oldChunks = new List<Chunk> (FindObjectsByType<Chunk> ());
 
         // Go through all coords and create a chunk there if one doesn't already exist
         for (int x = 0; x < numChunks.x; x++) {
@@ -370,7 +370,7 @@ public class MeshGenerator : MonoBehaviour {
         if (showBoundsGizmo) {
             Gizmos.color = boundsGizmoCol;
 
-            List<Chunk> chunks = (this.chunks == null) ? new List<Chunk> (FindObjectsOfType<Chunk> ()) : this.chunks;
+            List<Chunk> chunks = (this.chunks == null) ? new List<Chunk> (FindObjectsByType<Chunk> ()) : this.chunks;
             foreach (var chunk in chunks) {
                 Bounds bounds = new Bounds (CentreFromCoord (chunk.coord), Vector3.one * boundsSize);
                 Gizmos.color = boundsGizmoCol;
